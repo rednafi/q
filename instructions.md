@@ -42,7 +42,7 @@
   * show the filesystem path to the API key config file
 
 
-* q default set --model model-name
+* q default set model-name
 
   * sets the default model for chat or one-shot mode
   * stored at \$XDG\_CONFIG\_HOME/q/default.json
@@ -109,7 +109,7 @@
 
 * if no model specified and no default set
 
-  * return clear error: "no default model set; use --model or q default set --model ..."
+  * return clear error: "no default model set; use --model or q default set ..."
 
 * help command
 

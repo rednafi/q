@@ -25,7 +25,7 @@ func (p *Provider) Name() string { return "openai" }
 
 // SupportedModels lists the OpenAI model identifiers.
 func (p *Provider) SupportedModels() []string {
-	return []string{"gpt-4", "gpt-4o", "gpt-o3", "gpt-4.1"}
+	return []string{"gpt-4", "gpt-4o", "o3", "gpt-4.1"}
 }
 
 // Prompt sends a one-shot prompt to the OpenAI Chat Completions API.

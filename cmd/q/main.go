@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -9,9 +10,9 @@ import (
 
 	"github.com/spf13/cobra"
 	"q/internal/config"
-	"q/internal/google"
-	"q/internal/openai"
 	"q/internal/providers"
+	"q/internal/providers/google"
+	"q/internal/providers/openai"
 	"slices"
 )
 
@@ -22,108 +23,95 @@ var (
 
 // rootCmd handles one-shot prompts.
 var rootCmd = &cobra.Command{
-	Use:   "q [prompt]",
-	Short: "Run a one-shot prompt with a model",
-	Args:  cobra.ArbitraryArgs,
-	Run: func(cmd *cobra.Command, args []string) {
+	Use:          "q [prompt]",
+	Short:        "Run a one-shot prompt with a model",
+	Args:         cobra.ArbitraryArgs,
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) == 0 {
-			cmd.Help()
-			return
+			return cmd.Help()
 		}
 		model := modelName
 		if model == "" {
-			var err error
-			model, err = config.GetDefaultModel()
+			m, err := config.GetDefaultModel()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "error loading default: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("error loading default: %w", err)
 			}
-			if model == "" {
-				fmt.Fprintln(os.Stderr, "no default model set; use 'q default set --model provider/model'")
-				os.Exit(1)
+			if m == "" {
+				return errors.New("no default model set; use 'q default set provider/model'")
 			}
+			model = m
 		}
 		parts := strings.SplitN(model, "/", 2)
 		if len(parts) != 2 {
-			fmt.Fprintf(os.Stderr, "invalid model format; use provider/model\n")
-			os.Exit(1)
+			return errors.New("invalid model format; use provider/model")
 		}
 		provider, mdl := parts[0], parts[1]
 		p, ok := providers.Get(provider)
 		if !ok {
-			fmt.Fprintf(os.Stderr, "unknown provider: %s\n", provider)
-			os.Exit(1)
+			return fmt.Errorf("unknown provider: %s", provider)
 		}
 		if !slices.Contains(p.SupportedModels(), mdl) {
-			fmt.Fprintf(os.Stderr, "unsupported model for %s: %s\n", provider, mdl)
-			os.Exit(1)
+			return fmt.Errorf("unsupported model for %s: %s", provider, mdl)
 		}
 		key, err := config.GetAPIKey(provider)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reading keys: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("error reading keys: %w", err)
 		}
 		if key == "" {
-			fmt.Fprintf(os.Stderr, "no API key set for %s; use 'q keys set --provider %s --key KEY'\n", provider, provider)
-			os.Exit(1)
+			return fmt.Errorf("no API key set for %s; use 'q keys set --provider %s --key KEY'", provider, provider)
 		}
 		if !noStream {
 			if streamer, ok := p.(interface{ Stream(string, string) error }); ok {
 				fmt.Printf("model (%s/%s): ", provider, mdl)
 				if err := streamer.Stream(mdl, args[0]); err != nil {
-					fmt.Fprintf(os.Stderr, "error during prompt: %v\n", err)
-					os.Exit(1)
+					return fmt.Errorf("error during prompt: %w", err)
 				}
 				fmt.Println()
-				return
+				return nil
 			}
 		}
 		resp, err := p.Prompt(mdl, args[0])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error during prompt: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("error during prompt: %w", err)
 		}
 		fmt.Printf("model (%s/%s): %s\n", provider, mdl, resp)
+		return nil
 	},
 }
 
 // chatCmd starts the interactive REPL.
 var chatCmd = &cobra.Command{
-	Use:   "chat",
-	Short: "Start interactive REPL with a model",
-	Run: func(cmd *cobra.Command, args []string) {
+	Use:          "chat",
+	Short:        "Start interactive REPL with a model",
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		model := modelName
 		if model == "" {
-			var err error
-			model, err = config.GetDefaultModel()
+			m, err := config.GetDefaultModel()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "error loading default: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("error loading default: %w", err)
 			}
-			if model == "" {
-				fmt.Fprintln(os.Stderr, "no default model set; use 'q default set --model provider/model'")
-				os.Exit(1)
+			if m == "" {
+				return errors.New("no default model set; use 'q default set provider/model'")
 			}
+			model = m
 		}
 		parts := strings.SplitN(model, "/", 2)
 		provider, mdl := parts[0], parts[1]
 		p, ok := providers.Get(provider)
 		if !ok {
-			fmt.Fprintf(os.Stderr, "unknown provider: %s\n", provider)
-			os.Exit(1)
+			return fmt.Errorf("unknown provider: %s", provider)
 		}
 		if !slices.Contains(p.SupportedModels(), mdl) {
-			fmt.Fprintf(os.Stderr, "unsupported model for %s: %s\n", provider, mdl)
-			os.Exit(1)
+			return fmt.Errorf("unsupported model for %s: %s", provider, mdl)
 		}
 		key, err := config.GetAPIKey(provider)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reading keys: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("error reading keys: %w", err)
 		}
 		if key == "" {
-			fmt.Fprintf(os.Stderr, "no API key set for %s; use 'q keys set --provider %s --key KEY'\n", provider, provider)
-			os.Exit(1)
+			return fmt.Errorf("no API key set for %s; use 'q keys set --provider %s --key KEY'", provider, provider)
 		}
 		if !noStream {
 			reader := bufio.NewReader(os.Stdin)
@@ -132,10 +120,9 @@ var chatCmd = &cobra.Command{
 				text, err := reader.ReadString('\n')
 				if err != nil {
 					if err == io.EOF {
-						return
+						return nil
 					}
-					fmt.Fprintf(os.Stderr, "error reading input: %v\n", err)
-					os.Exit(1)
+					return fmt.Errorf("error reading input: %w", err)
 				}
 				text = strings.TrimSpace(text)
 				if text == "" {
@@ -144,24 +131,22 @@ var chatCmd = &cobra.Command{
 				fmt.Printf("model (%s/%s): ", provider, mdl)
 				if streamer, ok := p.(interface{ Stream(string, string) error }); ok {
 					if err := streamer.Stream(mdl, text); err != nil {
-						fmt.Fprintf(os.Stderr, "error during chat: %v\n", err)
-						os.Exit(1)
+						return fmt.Errorf("error during chat: %w", err)
 					}
 					fmt.Println()
 				} else {
 					resp, err := p.Prompt(mdl, text)
 					if err != nil {
-						fmt.Fprintf(os.Stderr, "error during chat: %v\n", err)
-						os.Exit(1)
+						return fmt.Errorf("error during chat: %w", err)
 					}
 					fmt.Printf("%s\n", resp)
 				}
 			}
 		}
 		if err := p.Chat(mdl); err != nil {
-			fmt.Fprintf(os.Stderr, "error during chat: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("error during chat: %w", err)
 		}
+		return nil
 	},
 }
 
@@ -172,15 +157,17 @@ var modelsCmd = &cobra.Command{
 }
 
 var modelsListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List available provider/model combinations",
-	Run: func(cmd *cobra.Command, args []string) {
+	Use:          "list",
+	Short:        "List available provider/model combinations",
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		for _, pr := range providers.Providers() {
 			p, _ := providers.Get(pr)
 			for _, m := range p.SupportedModels() {
 				fmt.Printf("%s/%s\n", pr, m)
 			}
 		}
+		return nil
 	},
 }
 
@@ -190,13 +177,13 @@ var keysCmd = &cobra.Command{
 }
 
 var keysListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List which providers have keys set",
-	Run: func(cmd *cobra.Command, args []string) {
+	Use:          "list",
+	Short:        "List which providers have keys set",
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.LoadConfig()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error loading config: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("error loading config: %w", err)
 		}
 		for _, pr := range providers.Providers() {
 			status := "❌"
@@ -205,37 +192,40 @@ var keysListCmd = &cobra.Command{
 			}
 			fmt.Printf("%s: %s\n", pr, status)
 		}
+		return nil
 	},
 }
 
 var keysSetCmd = &cobra.Command{
-	Use:   "set",
-	Short: "Set API key for a provider",
-	Run: func(cmd *cobra.Command, args []string) {
+	Use:          "set",
+	Short:        "Set API key for a provider",
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		provider, _ := cmd.Flags().GetString("provider")
 		key, _ := cmd.Flags().GetString("key")
 		if provider == "" || key == "" {
-			cmd.Help()
-			os.Exit(1)
+			_ = cmd.Help()
+			return errors.New("provider and key must be provided")
 		}
 		if err := config.SetAPIKey(provider, key); err != nil {
-			fmt.Fprintf(os.Stderr, "error saving key: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("error saving key: %w", err)
 		}
 		fmt.Printf("Saved key for %s\n", provider)
+		return nil
 	},
 }
 
 var keysPathCmd = &cobra.Command{
-	Use:   "path",
-	Short: "Show path to API key config file",
-	Run: func(cmd *cobra.Command, args []string) {
+	Use:          "path",
+	Short:        "Show path to API key config file",
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		path, err := config.ConfigPath()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error getting config path: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("error getting config path: %w", err)
 		}
 		fmt.Println(path)
+		return nil
 	},
 }
 
@@ -245,36 +235,34 @@ var defaultCmd = &cobra.Command{
 }
 
 var defaultListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "Show default model",
-	Run: func(cmd *cobra.Command, args []string) {
+	Use:          "list",
+	Short:        "Show default model",
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		m, err := config.GetDefaultModel()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error loading default: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("error loading default: %w", err)
 		}
 		if m == "" {
-			fmt.Fprintln(os.Stderr, "no default model set")
-			os.Exit(1)
+			return errors.New("no default model set")
 		}
 		fmt.Println(m)
+		return nil
 	},
 }
 
 var defaultSetCmd = &cobra.Command{
-	Use:   "set",
-	Short: "Set default model",
-	Run: func(cmd *cobra.Command, args []string) {
-		m, _ := cmd.Flags().GetString("model")
-		if m == "" {
-			cmd.Help()
-			os.Exit(1)
-		}
+	Use:          "set [model]",
+	Short:        "Set default model",
+	Args:         cobra.ExactArgs(1),
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		m := args[0]
 		if err := config.SetDefaultModel(m); err != nil {
-			fmt.Fprintf(os.Stderr, "error saving default: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("error saving default: %w", err)
 		}
 		fmt.Printf("Saved default model: %s\n", m)
+		return nil
 	},
 }
 
@@ -286,8 +274,6 @@ func init() {
 
 	keysSetCmd.Flags().String("provider", "", "provider name")
 	keysSetCmd.Flags().String("key", "", "API key")
-
-	defaultSetCmd.Flags().String("model", "", "provider/model")
 
 	rootCmd.AddCommand(chatCmd, modelsCmd, keysCmd, defaultCmd)
 	modelsCmd.AddCommand(modelsListCmd)
