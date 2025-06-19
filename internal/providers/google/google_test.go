@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -57,8 +58,19 @@ func TestNameAndSupportedModels(t *testing.T) {
 		t.Errorf("Name() = %q; want %q", got, "google")
 	}
 	models := p.SupportedModels()
-	if len(models) != 1 || models[0] != "gemini-2.5" {
-		t.Errorf("SupportedModels() = %v; want [\"gemini-2.5\"]", models)
+	want := []string{
+		"gemini-1.0-pro",
+		"gemini-1.0-pro-vision",
+		"gemini-1.5-pro",
+		"gemini-1.5-flash",
+		"gemini-2.0-flash",
+		"gemini-2.0-flash-lite",
+		"gemini-2.5-pro",
+		"gemini-2.5-flash",
+		"gemini-2.5-flash-lite",
+	}
+	if !reflect.DeepEqual(models, want) {
+		t.Errorf("SupportedModels() = %v; want %v", models, want)
 	}
 }
 

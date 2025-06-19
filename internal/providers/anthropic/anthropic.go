@@ -1,4 +1,4 @@
-package google
+package anthropic
 
 import (
 	"bufio"
@@ -14,31 +14,26 @@ import (
 	"q/internal/httpclient"
 )
 
-// Provider implements the Google Gemini provider.
+// Provider implements the anthropic provider for Claude models.
 type Provider struct{}
 
-// New returns a new Google Provider.
+// New returns a new Anthropic Provider.
 func New() *Provider { return &Provider{} }
 
 // Name returns the vendor name.
-func (p *Provider) Name() string { return "google" }
+func (p *Provider) Name() string { return "anthropic" }
 
-// SupportedModels lists the Google Gemini model identifiers.
+// SupportedModels lists the Anthropic Claude model identifiers supported by q.
 func (p *Provider) SupportedModels() []string {
 	return []string{
-		"gemini-1.0-pro",
-		"gemini-1.0-pro-vision",
-		"gemini-1.5-pro",
-		"gemini-1.5-flash",
-		"gemini-2.0-flash",
-		"gemini-2.0-flash-lite",
-		"gemini-2.5-pro",
-		"gemini-2.5-flash",
-		"gemini-2.5-flash-lite",
+		"claude-opus-4-20250514",
+		"claude-sonnet-4-20250514",
+		"claude-3.7-sonnet-20250219",
+		"claude-3.5-haiku-20241022",
 	}
 }
 
-// Prompt sends a one-shot prompt to the Google Gemini API.
+// Prompt sends a one-shot prompt to the Anthropic Messages API.
 func (p *Provider) Prompt(model, prompt string) (string, error) {
 	key, err := config.GetAPIKey(p.Name())
 	if err != nil {
@@ -47,18 +42,24 @@ func (p *Provider) Prompt(model, prompt string) (string, error) {
 	if key == "" {
 		return "", fmt.Errorf("no API key set for %s; use 'q set key --provider %s --key KEY'", p.Name(), p.Name())
 	}
-	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1/models/%s:generateMessage", model)
-	body := map[string]interface{}{"prompt": map[string]interface{}{"text": prompt}}
+	// Anthropic API expects input as a list of messages. Single prompt is as user.
+	apiURL := "https://api.anthropic.com/v1/messages"
+	body := map[string]any{
+		"model":      model,
+		"max_tokens": 1024,
+		"messages":   []map[string]string{{"role": "user", "content": prompt}},
+	}
 	data, err := json.Marshal(body)
 	if err != nil {
 		return "", err
 	}
-	req, err := http.NewRequest("POST", url, bytes.NewReader(data))
+	req, err := http.NewRequest("POST", apiURL, bytes.NewReader(data))
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Authorization", "Bearer "+key)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-api-key", key)
+	req.Header.Set("content-type", "application/json")
+	req.Header.Set("anthropic-version", "2023-06-01")
 	resp, err := httpclient.Do(req)
 	if err != nil {
 		return "", err
@@ -69,20 +70,20 @@ func (p *Provider) Prompt(model, prompt string) (string, error) {
 		return "", err
 	}
 	var res struct {
-		Candidates []struct {
-			Content string `json:"content"`
-		} `json:"candidates"`
+		Content []struct {
+			Text string `json:"text"`
+		} `json:"content"`
 	}
 	if err := json.Unmarshal(respData, &res); err != nil {
 		return "", err
 	}
-	if len(res.Candidates) == 0 {
-		return "", fmt.Errorf("no response from google/gemini")
+	if len(res.Content) == 0 {
+		return "", fmt.Errorf("no response from anthropic")
 	}
-	return res.Candidates[0].Content, nil
+	return res.Content[0].Text, nil
 }
 
-// Chat starts an interactive REPL with the specified model.
+// Chat starts an interactive REPL with the specified Claude model.
 func (p *Provider) Chat(model string) error {
 	reader := bufio.NewReader(os.Stdin)
 	for {
