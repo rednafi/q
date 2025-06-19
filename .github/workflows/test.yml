@@ -1,0 +1,30 @@
+name: Test & E2E
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.4'
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - name: Download dependencies
+        run: go mod download
+      - name: Unit tests
+        run: go test -v ./...
+      - name: Build CLI binary for E2E
+        run: go build -o q .
+      - name: E2E CLI tests
+        run: go test -v -tags=e2e ./cmd/q
