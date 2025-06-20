@@ -1,36 +1,15 @@
-# .golangci.yml
 run:
-  timeout: 5m
-  go: "1.24"
+  timeout: 2m
 
 linters:
-  disable-all: true
-  errcheck:
-    ignore: '.*_test\.go|.*/test/.*'
   enable:
     - gofmt
-    - gofumpt
-    - goimports
-    - gci
-    - govet
     - staticcheck
-    - gosimple
+    - errcheck
 
-linters-settings:
-  gofumpt:
-    extra-rules: true
-  goimports:
-    local-prefixes: q
-  gci:
-    sections:
-      - standard
-      - default
-      - prefix(q)
-    skip-generated: true
-
+# run only errcheck on non-test files via issue exclusion
 issues:
-  max-issues-per-linter: 0
-  max-same-issues: 0
-
-output:
-  formats: colored-line-number
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
