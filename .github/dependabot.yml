@@ -1,0 +1,43 @@
+version: 2
+updates:
+  # Enable version updates for Go modules
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "saturday"
+      time: "06:41"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "rednafi"
+    assignees:
+      - "rednafi"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "go"
+    ignore:
+      # Ignore major version updates for specific packages if needed
+      # - dependency-name: "example.com/package"
+      #   update-types: ["version-update:semver-major"]
+
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "saturday"
+      time: "06:41"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "rednafi"
+    assignees:
+      - "rednafi"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "github-actions"
