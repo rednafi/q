@@ -1,8 +1,10 @@
-package providers
+package providers_test
 
 import (
 	"reflect"
 	"testing"
+
+	"q/internal/providers"
 )
 
 // dummyProvider is a minimal Provider implementation for testing.
@@ -15,47 +17,60 @@ func (d *dummyProvider) SupportedModels() []string                   { return []
 func (d *dummyProvider) Prompt(model, prompt string) (string, error) { return "", nil }
 func (d *dummyProvider) Chat(model string) error                     { return nil }
 
-func TestRegisterGetProviders(t *testing.T) {
-	// reset registry
-	orig := registry
-	defer func() { registry = orig }()
-	registry = make(map[string]Provider)
-
+func TestRegistryStruct(t *testing.T) {
+	// Test Registry struct directly
+	reg := providers.NewRegistry()
 	p := &dummyProvider{name: "test"}
-	Register(p)
-	got, ok := Get("test")
+	reg.Register(p)
+
+	got, ok := reg.Lookup("test")
 	if !ok || got != p {
-		t.Errorf("Get(\"test\") = %v, %v; want %v, true", got, ok, p)
+		t.Errorf("reg.Lookup(\"test\") = %v, %v; want %v, true", got, ok, p)
 	}
-	ps := Providers()
+
+	ps := reg.Names()
 	if len(ps) != 1 || ps[0] != "test" {
-		t.Errorf("Providers() = %v; want [\"test\"]", ps)
+		t.Errorf("reg.Names() = %v; want [\"test\"]", ps)
 	}
 }
 
 func TestRegisterDuplicatePanics(t *testing.T) {
-	orig := registry
-	defer func() { registry = orig }()
-	registry = make(map[string]Provider)
-
+	reg := providers.NewRegistry()
 	p := &dummyProvider{name: "dup"}
-	Register(p)
+	reg.Register(p)
 	defer func() {
 		if r := recover(); r == nil {
 			t.Errorf("expected panic on duplicate Register")
 		}
 	}()
-	Register(p)
+	reg.Register(p)
 }
 
 func TestProvidersSorted(t *testing.T) {
-	orig := registry
-	defer func() { registry = orig }()
-	registry = make(map[string]Provider)
-	registry["b"] = &dummyProvider{name: "b"}
-	registry["a"] = &dummyProvider{name: "a"}
+	reg := providers.NewRegistry()
+	// Register providers in reverse order to test sorting
+	reg.Register(&dummyProvider{name: "b"})
+	reg.Register(&dummyProvider{name: "a"})
 	want := []string{"a", "b"}
-	if got := Providers(); !reflect.DeepEqual(got, want) {
-		t.Errorf("Providers() = %v; want %v", got, want)
+	if got := reg.Names(); !reflect.DeepEqual(got, want) {
+		t.Errorf("reg.Names() = %v; want %v", got, want)
+	}
+}
+
+func TestMultipleProvidersRegistration(t *testing.T) {
+	reg := providers.NewRegistry()
+	p1 := &dummyProvider{name: "provider1"}
+	p2 := &dummyProvider{name: "provider2"}
+
+	reg.Register(p1, p2)
+
+	got1, ok1 := reg.Lookup("provider1")
+	if !ok1 || got1 != p1 {
+		t.Errorf("reg.Lookup(\"provider1\") = %v, %v; want %v, true", got1, ok1, p1)
+	}
+
+	got2, ok2 := reg.Lookup("provider2")
+	if !ok2 || got2 != p2 {
+		t.Errorf("reg.Lookup(\"provider2\") = %v, %v; want %v, true", got2, ok2, p2)
 	}
 }

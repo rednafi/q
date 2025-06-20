@@ -8,18 +8,27 @@ import (
 	"os"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"q/internal/config"
 	"q/internal/providers"
+	"q/internal/providers/anthropic"
 	"q/internal/providers/google"
 	"q/internal/providers/openai"
 	"slices"
+
+	"github.com/spf13/cobra"
 )
 
+// Version information set during build
 var (
-	modelName string
-	noStream  bool
+	version = "dev"
+	commit  = "unknown"
+	date    = "unknown"
 )
+
+// Global registry instance for the application
+var registry *providers.Registry
+
+// remove global flag variables; flags will be read from cobra.Command flags inside RunE
 
 // rootCmd handles one-shot prompts.
 var rootCmd = &cobra.Command{
@@ -28,17 +37,25 @@ var rootCmd = &cobra.Command{
 	Args:         cobra.ArbitraryArgs,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// read flags from command context
+		model, err := cmd.Flags().GetString("model")
+		if err != nil {
+			return fmt.Errorf("failed to parse --model flag: %w", err)
+		}
+		noStream, err := cmd.Flags().GetBool("no-stream")
+		if err != nil {
+			return fmt.Errorf("failed to parse --no-stream flag: %w", err)
+		}
 		if len(args) == 0 {
 			return cmd.Help()
 		}
-		model := modelName
 		if model == "" {
 			m, err := config.GetDefaultModel()
 			if err != nil {
 				return fmt.Errorf("error loading default: %w", err)
 			}
 			if m == "" {
-				return errors.New("no default model set; use 'q default set provider/model'")
+				return errors.New("no default model set; use 'q default set --model provider/model'")
 			}
 			model = m
 		}
@@ -47,7 +64,7 @@ var rootCmd = &cobra.Command{
 			return errors.New("invalid model format; use provider/model")
 		}
 		provider, mdl := parts[0], parts[1]
-		p, ok := providers.Get(provider)
+		p, ok := registry.Lookup(provider)
 		if !ok {
 			return fmt.Errorf("unknown provider: %s", provider)
 		}
@@ -86,20 +103,28 @@ var chatCmd = &cobra.Command{
 	Short:        "Start interactive REPL with a model",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		model := modelName
+		// read CLI flags
+		model, err := cmd.Flags().GetString("model")
+		if err != nil {
+			return fmt.Errorf("failed to parse --model flag: %w", err)
+		}
+		noStream, err := cmd.Flags().GetBool("no-stream")
+		if err != nil {
+			return fmt.Errorf("failed to parse --no-stream flag: %w", err)
+		}
 		if model == "" {
 			m, err := config.GetDefaultModel()
 			if err != nil {
 				return fmt.Errorf("error loading default: %w", err)
 			}
 			if m == "" {
-				return errors.New("no default model set; use 'q default set provider/model'")
+				return errors.New("no default model set; use 'q default set --model provider/model'")
 			}
 			model = m
 		}
 		parts := strings.SplitN(model, "/", 2)
 		provider, mdl := parts[0], parts[1]
-		p, ok := providers.Get(provider)
+		p, ok := registry.Lookup(provider)
 		if !ok {
 			return fmt.Errorf("unknown provider: %s", provider)
 		}
@@ -161,8 +186,8 @@ var modelsListCmd = &cobra.Command{
 	Short:        "List available provider/model combinations",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		for _, pr := range providers.Providers() {
-			p, _ := providers.Get(pr)
+		for _, pr := range registry.Names() {
+			p, _ := registry.Lookup(pr)
 			for _, m := range p.SupportedModels() {
 				fmt.Printf("%s/%s\n", pr, m)
 			}
@@ -185,7 +210,7 @@ var keysListCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("error loading config: %w", err)
 		}
-		for _, pr := range providers.Providers() {
+		for _, pr := range registry.Names() {
 			status := "❌"
 			if k := cfg.APIKeys[pr]; k != "" {
 				status = "✅"
@@ -252,41 +277,78 @@ var defaultListCmd = &cobra.Command{
 }
 
 var defaultSetCmd = &cobra.Command{
-	Use:          "set [model]",
+	Use:          "set",
 	Short:        "Set default model",
-	Args:         cobra.ExactArgs(1),
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		m := args[0]
-		if err := config.SetDefaultModel(m); err != nil {
+		model, err := cmd.Flags().GetString("model")
+		if err != nil {
+			return fmt.Errorf("failed to parse --model flag: %w", err)
+		}
+		if model == "" {
+			_ = cmd.Help()
+			return errors.New("model must be provided with --model flag")
+		}
+		if err := config.SetDefaultModel(model); err != nil {
 			return fmt.Errorf("error saving default: %w", err)
 		}
-		fmt.Printf("Saved default model: %s\n", m)
+		fmt.Printf("Saved default model: %s\n", model)
 		return nil
 	},
 }
 
-func init() {
-	rootCmd.PersistentFlags().BoolVar(&noStream, "no-stream", false, "Disable streaming output")
-	rootCmd.PersistentFlags().BoolVar(&noStream, "ns", false, "Alias for --no-stream")
-	rootCmd.PersistentFlags().StringVarP(&modelName, "model", "m", "", "provider/model")
-	chatCmd.Flags().StringVarP(&modelName, "model", "m", "", "provider/model")
+var versionCmd = &cobra.Command{
+	Use:          "version",
+	Short:        "Show version information",
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		fmt.Printf("q version %s\n", version)
+		fmt.Printf("commit: %s\n", commit)
+		fmt.Printf("date: %s\n", date)
+		return nil
+	},
+}
 
-	keysSetCmd.Flags().String("provider", "", "provider name")
-	keysSetCmd.Flags().String("key", "", "API key")
+// run wires providers, flags, and commands explicitly.
+func run() error {
+	// Create and initialize the application registry
+	registry = providers.NewRegistry()
 
-	rootCmd.AddCommand(chatCmd, modelsCmd, keysCmd, defaultCmd)
+	// plugin registration
+	// register all providers in one call
+	registry.Register(
+		openai.New(),
+		google.New(),
+		anthropic.New(),
+	)
+
+	// flag wiring
+	rootCmd.Flags().StringP("model", "m", "", "provider/model")
+	rootCmd.Flags().Bool("no-stream", false, "Disable streaming output")
+	chatCmd.Flags().StringP("model", "m", "", "provider/model")
+	chatCmd.Flags().Bool("no-stream", false, "Disable streaming output")
+
+	// flag wiring for keys commands
+	keysSetCmd.Flags().StringP("provider", "p", "", "provider name")
+	keysSetCmd.Flags().StringP("key", "k", "", "API key")
+
+	// flag wiring for default commands
+	defaultSetCmd.Flags().StringP("model", "m", "", "provider/model")
+
+	// command wiring
+	rootCmd.AddCommand(chatCmd, modelsCmd, keysCmd, defaultCmd, versionCmd)
 	modelsCmd.AddCommand(modelsListCmd)
 	keysCmd.AddCommand(keysListCmd, keysSetCmd, keysPathCmd)
 	defaultCmd.AddCommand(defaultListCmd, defaultSetCmd)
+
+	if err := rootCmd.Execute(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func main() {
-	// explicit plugin registration
-	providers.Register(openai.New())
-	providers.Register(google.New())
-
-	if err := rootCmd.Execute(); err != nil {
+	if err := run(); err != nil {
 		os.Exit(1)
 	}
 }

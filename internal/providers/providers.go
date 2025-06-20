@@ -5,7 +5,7 @@ import (
 	"sync"
 )
 
-// Provider is the interface each vendor plugin must implement.
+// Provider is implemented by all vendor backends (e.g. OpenAI, Google).
 type Provider interface {
 	// Name returns the vendor identifier (e.g., "openai", "google").
 	Name() string
@@ -18,33 +18,50 @@ type Provider interface {
 	Chat(model string) error
 }
 
-var registry = make(map[string]Provider)
-
-// Register adds a new Provider. It panics on duplicate names.
-func Register(p Provider) {
-	name := p.Name()
-	var mu sync.Mutex
-	mu.Lock()
-	defer mu.Unlock()
-
-	if _, ok := registry[name]; ok {
-		panic("provider already registered: " + name)
-	}
-	registry[name] = p
+// Registry stores and manages named providers.
+type Registry struct {
+	mu   sync.RWMutex
+	data map[string]Provider
 }
 
-// Get returns the Provider registered under the given name.
-func Get(name string) (Provider, bool) {
-	p, ok := registry[name]
+// NewRegistry returns a new, empty Registry.
+func NewRegistry() *Registry {
+	return &Registry{
+		data: make(map[string]Provider),
+	}
+}
+
+// Register adds one or more providers. It panics if any name is duplicated.
+func (r *Registry) Register(ps ...Provider) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, p := range ps {
+		name := p.Name()
+		if _, exists := r.data[name]; exists {
+			panic("provider already registered: " + name)
+		}
+		r.data[name] = p
+	}
+}
+
+// Lookup returns the provider with the given name, if found.
+func (r *Registry) Lookup(name string) (Provider, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	p, ok := r.data[name]
 	return p, ok
 }
 
-// Providers returns the sorted list of registered provider names.
-func Providers() []string {
-	ps := make([]string, 0, len(registry))
-	for name := range registry {
-		ps = append(ps, name)
+// Names returns a sorted list of all registered provider names.
+func (r *Registry) Names() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	names := make([]string, 0, len(r.data))
+	for name := range r.data {
+		names = append(names, name)
 	}
-	slices.Sort(ps)
-	return ps
+	slices.Sort(names)
+	return names
 }

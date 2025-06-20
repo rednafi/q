@@ -1,0 +1,80 @@
+before:
+  hooks:
+    - go mod tidy
+    - go mod verify
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+      - GOEXPERIMENT=loopvar
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    binary: q
+    main: ./cmd/q
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+    flags:
+      - -trimpath
+
+archives:
+  - format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - Merge pull request
+      - Merge branch
+
+brews:
+  - name: q
+    homepage: "https://github.com/rednafi/canvas/q"
+    description: "A CLI tool for interacting with AI models"
+    repository:
+      name: q
+      owner: rednafi
+      token: "{{ .Env.GITHUB_TOKEN }}"
+    commit_author:
+      name: GitHub Actions
+      email: actions@github.com
+    folder: Formula
+    homepage: "https://github.com/rednafi/canvas/q"
+    description: "A CLI tool for interacting with AI models"
+    test: |
+      system "#{bin}/q", "--help"
+    install: |
+      bin.install "q"
+    dependencies:
+      - go
+    conflicts_with:
+      - q-cli
+
+release:
+  name_template: '{{ .Tag }}'
+  draft: false
+  prerelease: false
+
+dist: dist

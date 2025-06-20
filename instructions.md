@@ -58,7 +58,7 @@
     * Name() string
     * Prompt(prompt string) (string, error)
     * Chat() error
-  * model must register itself via init()
+  * models are registered explicitly in main setup (no init functions)
   * model name must be unique and match convention provider/model-name
 
 * http calls
