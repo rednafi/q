@@ -33,7 +33,7 @@ var registry *providers.Registry
 // rootCmd handles one-shot prompts.
 var rootCmd = &cobra.Command{
 	Use:          "q [prompt]",
-	Short:        "Run a one-shot prompt with a model",
+	Short:        "A fast CLI for chatting with your favorite language models.",
 	Args:         cobra.ArbitraryArgs,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
