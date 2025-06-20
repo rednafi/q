@@ -82,6 +82,12 @@ func (p *Provider) Prompt(model, prompt string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	// Check for HTTP error status
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(respData))
+	}
+
 	var res struct {
 		Choices []struct {
 			Message struct {
@@ -90,10 +96,13 @@ func (p *Provider) Prompt(model, prompt string) (string, error) {
 		} `json:"choices"`
 	}
 	if err := json.Unmarshal(respData, &res); err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to parse response: %w", err)
 	}
 	if len(res.Choices) == 0 {
 		return "", fmt.Errorf("no response from openai")
+	}
+	if res.Choices[0].Message.Content == "" {
+		return "", fmt.Errorf("no content in response from openai")
 	}
 	return res.Choices[0].Message.Content, nil
 }
