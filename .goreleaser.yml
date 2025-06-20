@@ -61,8 +61,6 @@ brews:
       name: GitHub Actions
       email: actions@github.com
     folder: Formula
-    homepage: "https://github.com/rednafi/canvas/q"
-    description: "A CLI tool for interacting with AI models"
     test: |
       system "#{bin}/q", "--help"
     install: |
