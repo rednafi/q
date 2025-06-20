@@ -1,17 +1,17 @@
-# q -- Chat in your terminal
+# q
 
-A fast command-line interface for chatting with language models.
+A fast CLI for chatting with your favorite language models.
 
-## ✨ Features
+## Features
 
 - **Multi-provider support**: OpenAI, Anthropic Claude, and Google Gemini
-- **Streaming responses**: Watch AI responses appear in real-time
-- **Interactive chat mode**: Have conversations with your AI models
+- **Streaming responses**: Watch responses appear in real-time
+- **Interactive chat mode**: Have conversations with your language models
 - **One-shot prompts**: Quick questions without starting a chat session
 - **Smart defaults**: Set your preferred model and forget about it
 - **Simple setup**: Just add your API keys and you're ready to go
 
-## 🚀 Quick start
+## Quick start
 
 ### Installation
 
@@ -39,13 +39,13 @@ brew install rednafi/tap/q
    ```
 
 3. **Set your default model**:
-   ```bash
+   ```sh
    q default set -m openai/gpt-4o
    q default set -m anthropic/claude-3.5-haiku-20241022
    ```
 
 4. **Start chatting**:
-   ```bash
+   ```sh
    q "What's the weather like today?"
    ```
 
@@ -55,7 +55,7 @@ brew install rednafi/tap/q
 
 Ask quick questions without starting a chat session:
 
-```bash
+```sh
 # Use default model
 q "Explain quantum computing in simple terms"
 
@@ -70,7 +70,7 @@ q --no-stream "What are the benefits of meditation?"
 
 Start a conversation with your AI model:
 
-```bash
+```sh
 # Use default model
 q chat
 
@@ -85,7 +85,7 @@ q chat --no-stream
 
 See all supported models:
 
-```bash
+```sh
 q models list
 ```
 
@@ -145,34 +145,6 @@ q default set -m openai/gpt-4o
 q default set -m anthropic/claude-3.5-haiku-20241022
 ```
 
-## 🎨 Examples
-
-### Code generation
-```bash
-q "Write a Go function that validates email addresses"
-```
-
-### Text analysis
-```sh
-q "Summarize the key points of this article: [paste article text]"
-```
-
-### Creative writing
-```bash
-q "Write a short story about a robot learning to paint"
-```
-
-### Problem solving
-```bash
-q "I'm getting a 'permission denied' error when trying to write to a file. How do I fix this?"
-```
-
-### Interactive debugging
-```sh
-q chat -m openai/gpt-4o
-# Then paste your error messages and code for interactive debugging
-```
-
 ## 🔧 Command reference
 
 ### Commands
@@ -188,19 +160,6 @@ q chat -m openai/gpt-4o
 - `q default set -m <model>`: Set default model (or `--model`)
 - `q version`: Show version information
 
-## 🛠️ Tips & tricks
+## Why?
 
-### Quick model switching
-```bash
-# Use different models for different tasks
-q -m openai/gpt-4o "Complex reasoning task"
-q -m anthropic/claude-3.5-haiku-20241022 "Quick question"
-q -m google/gemini-1.5-flash "Creative writing"
-```
-
-### Streaming vs non-streaming
-- **Streaming** (default): Watch responses appear in real-time
-- **Non-streaming**: Get the complete response at once (useful for scripts)
-
-### Config file location
-Your configuration is stored in a JSON file. Use `q keys path` to find it.
+There's no shortage of wrappers that call the language model from your terminal. I wanted to have my own that's written in Go :)
