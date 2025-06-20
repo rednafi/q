@@ -67,10 +67,9 @@ func TestStream_Success(t *testing.T) {
 	if err := config.SetAPIKey("openai", "key"); err != nil {
 		t.Fatalf("SetAPIKey: %v", err)
 	}
-	s :=
-		"data: {\"choices\":[{\"delta\":{\"content\":\"h\"}}]}\n" +
-			"data: {\"choices\":[{\"delta\":{\"content\":\"i\"}}]}\n" +
-			"data: [DONE]\n"
+	s := "data: {\"choices\":[{\"delta\":{\"content\":\"h\"}}]}\n" +
+		"data: {\"choices\":[{\"delta\":{\"content\":\"i\"}}]}\n" +
+		"data: [DONE]\n"
 	p := NewWithClient(&fakeClient{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(strings.NewReader(s)),
@@ -169,6 +168,7 @@ func TestPrompt_HTTPError(t *testing.T) {
 		t.Errorf("expected HTTP error, got %v", err)
 	}
 }
+
 func TestPrompt_NoResponse(t *testing.T) {
 	tmp := t.TempDir()
 	os.Setenv("XDG_CONFIG_HOME", tmp)

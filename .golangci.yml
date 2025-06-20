@@ -9,9 +9,24 @@ linters:
     ignore: '.*_test\.go|.*/test/.*'
   enable:
     - gofmt
+    - gofumpt
+    - goimports
+    - gci
     - govet
     - staticcheck
     - gosimple
+
+linters-settings:
+  gofumpt:
+    extra-rules: true
+  goimports:
+    local-prefixes: q
+  gci:
+    sections:
+      - standard
+      - default
+      - prefix(q)
+    skip-generated: true
 
 issues:
   max-issues-per-linter: 0
