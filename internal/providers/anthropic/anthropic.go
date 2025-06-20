@@ -15,10 +15,20 @@ import (
 )
 
 // Provider implements the anthropic provider for Claude models.
-type Provider struct{}
+// It holds an HTTP client for making requests, enabling dependency injection.
+type Provider struct {
+	client httpclient.HTTPClient
+}
 
-// New returns a new Anthropic Provider.
-func New() *Provider { return &Provider{} }
+// New returns a new Anthropic Provider using the default HTTP client.
+func New() *Provider {
+	return &Provider{client: http.DefaultClient}
+}
+
+// NewWithClient returns a new Anthropic Provider with the provided HTTP client.
+func NewWithClient(c httpclient.HTTPClient) *Provider {
+	return &Provider{client: c}
+}
 
 // Name returns the vendor name.
 func (p *Provider) Name() string { return "anthropic" }
@@ -60,7 +70,7 @@ func (p *Provider) Prompt(model, prompt string) (string, error) {
 	req.Header.Set("x-api-key", key)
 	req.Header.Set("content-type", "application/json")
 	req.Header.Set("anthropic-version", "2023-06-01")
-	resp, err := httpclient.Do(req)
+	resp, err := p.client.Do(req)
 	if err != nil {
 		return "", err
 	}

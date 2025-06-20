@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"q/internal/config"
-	"q/internal/httpclient"
 )
 
 // fakeClient is an HTTPClient stub for testing.
@@ -40,9 +39,7 @@ func TestPrompt_Success(t *testing.T) {
 		t.Fatalf("SetAPIKey: %v", err)
 	}
 	data := `{"candidates":[{"content":"hi"}]}`
-	httpclient.SetClient(&fakeClient{resp: &http.Response{Body: io.NopCloser(bytes.NewBufferString(data))}})
-	defer httpclient.SetClient(http.DefaultClient)
-	p := New()
+	p := NewWithClient(&fakeClient{resp: &http.Response{Body: io.NopCloser(bytes.NewBufferString(data))}})
 	got, err := p.Prompt("gemini-2.5", "prompt")
 	if err != nil {
 		t.Fatalf("Prompt error: %v", err)
@@ -83,8 +80,7 @@ func TestChat(t *testing.T) {
 	}
 	// Stub HTTP client to return a fixed message
 	body := `{"candidates":[{"content":"resp"}]}`
-	httpclient.SetClient(&fakeClient{resp: &http.Response{Body: io.NopCloser(bytes.NewBufferString(body))}})
-	defer httpclient.SetClient(http.DefaultClient)
+	p := NewWithClient(&fakeClient{resp: &http.Response{Body: io.NopCloser(bytes.NewBufferString(body))}})
 	// Prepare stdin with a single message and EOF
 	pr, pw, err := os.Pipe()
 	if err != nil {
@@ -101,7 +97,6 @@ func TestChat(t *testing.T) {
 	os.Stdout = wOut
 	defer func() { os.Stdout = oldStdout }()
 
-	p := New()
 	if err := p.Chat("gemini-2.5"); err != nil {
 		t.Fatalf("Chat error: %v", err)
 	}
@@ -127,9 +122,8 @@ func TestPrompt_HTTPError(t *testing.T) {
 	if err := config.SetAPIKey("google", "key"); err != nil {
 		t.Fatalf("SetAPIKey: %v", err)
 	}
-	httpclient.SetClient(&fakeClientErr{})
-	defer httpclient.SetClient(http.DefaultClient)
-	_, err := New().Prompt("gemini-2.5", "prompt")
+	pErr := NewWithClient(&fakeClientErr{})
+	_, err := pErr.Prompt("gemini-2.5", "prompt")
 	if err == nil || !strings.Contains(err.Error(), "fail") {
 		t.Errorf("expected HTTP error, got %v", err)
 	}
@@ -143,9 +137,8 @@ func TestPrompt_NoResponse(t *testing.T) {
 	}
 	// Stub HTTP client to return empty candidates
 	body := `{"candidates":[]}`
-	httpclient.SetClient(&fakeClient{resp: &http.Response{Body: io.NopCloser(bytes.NewBufferString(body))}})
-	defer httpclient.SetClient(http.DefaultClient)
-	_, err := New().Prompt("gemini-2.5", "prompt")
+	pNoResp := NewWithClient(&fakeClient{resp: &http.Response{Body: io.NopCloser(bytes.NewBufferString(body))}})
+	_, err := pNoResp.Prompt("gemini-2.5", "prompt")
 	if err == nil || !strings.Contains(err.Error(), "no response from google/gemini") {
 		t.Errorf("expected no response error, got %v", err)
 	}
@@ -157,9 +150,8 @@ func TestPrompt_InvalidJSON(t *testing.T) {
 	if err := config.SetAPIKey("google", "key"); err != nil {
 		t.Fatalf("SetAPIKey: %v", err)
 	}
-	httpclient.SetClient(&fakeClient{resp: &http.Response{Body: io.NopCloser(bytes.NewBufferString("notjson"))}})
-	defer httpclient.SetClient(http.DefaultClient)
-	_, err := New().Prompt("gemini-2.5", "prompt")
+	pInvalid := NewWithClient(&fakeClient{resp: &http.Response{Body: io.NopCloser(bytes.NewBufferString("notjson"))}})
+	_, err := pInvalid.Prompt("gemini-2.5", "prompt")
 	if err == nil {
 		t.Error("expected JSON unmarshal error, got nil")
 	}
