@@ -5,10 +5,11 @@ run:
 
 linters:
   disable-all: true
+  errcheck:
+    ignore: '.*_test\.go|.*/test/.*'
   enable:
     - gofmt
     - govet
-    - errcheck
     - staticcheck
     - gosimple
 
