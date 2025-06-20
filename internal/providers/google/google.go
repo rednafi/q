@@ -15,10 +15,20 @@ import (
 )
 
 // Provider implements the Google Gemini provider.
-type Provider struct{}
+// It holds an HTTP client for making requests, enabling dependency injection.
+type Provider struct {
+	client httpclient.HTTPClient
+}
 
-// New returns a new Google Provider.
-func New() *Provider { return &Provider{} }
+// New returns a new Google Provider using the default HTTP client.
+func New() *Provider {
+	return &Provider{client: http.DefaultClient}
+}
+
+// NewWithClient returns a new Google Provider with the provided HTTP client.
+func NewWithClient(c httpclient.HTTPClient) *Provider {
+	return &Provider{client: c}
+}
 
 // Name returns the vendor name.
 func (p *Provider) Name() string { return "google" }
@@ -59,7 +69,7 @@ func (p *Provider) Prompt(model, prompt string) (string, error) {
 	}
 	req.Header.Set("Authorization", "Bearer "+key)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := httpclient.Do(req)
+	resp, err := p.client.Do(req)
 	if err != nil {
 		return "", err
 	}

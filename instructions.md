@@ -63,8 +63,9 @@
 
 * http calls
 
-  * abstracted behind a shared HTTP client interface
-  * reusable by all plugins
+  * providers receive an HTTPClient dependency via constructor for HTTP requests
+  * default HTTP client (http.DefaultClient) is used when none is specified
+  * enables mocking and testing without global state
 
 * output format
 
@@ -82,6 +83,7 @@
 * testing
 
   * go test ./...
+  * providers and plugin tests inject HTTPClient dependencies instead of patching global state
   * use os/exec to simulate CLI behavior in test scripts
   * aim for full coverage of all commands and plugin integrations
 

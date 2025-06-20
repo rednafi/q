@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"q/internal/config"
-	"q/internal/httpclient"
 )
 
 // fakeClient is an HTTPClient stub for testing.
@@ -39,9 +38,7 @@ func TestPrompt_Success(t *testing.T) {
 		t.Fatalf("SetAPIKey: %v", err)
 	}
 	data := `{"choices":[{"message":{"content":"world"}}]}`
-	httpclient.SetClient(&fakeClient{resp: &http.Response{Body: io.NopCloser(bytes.NewBufferString(data))}})
-	defer httpclient.SetClient(http.DefaultClient)
-	p := New()
+	p := NewWithClient(&fakeClient{resp: &http.Response{Body: io.NopCloser(bytes.NewBufferString(data))}})
 	got, err := p.Prompt("gpt-4", "prompt")
 	if err != nil {
 		t.Fatalf("Prompt error: %v", err)
@@ -71,8 +68,7 @@ func TestStream_Success(t *testing.T) {
 		"data: {\"choices\":[{\"delta\":{\"content\":\"h\"}}]}\n" +
 			"data: {\"choices\":[{\"delta\":{\"content\":\"i\"}}]}\n" +
 			"data: [DONE]\n"
-	httpclient.SetClient(&fakeClient{resp: &http.Response{Body: io.NopCloser(strings.NewReader(s))}})
-	defer httpclient.SetClient(http.DefaultClient)
+	p := NewWithClient(&fakeClient{resp: &http.Response{Body: io.NopCloser(strings.NewReader(s))}})
 	// capture stdout via pipe
 	r, w, err := os.Pipe()
 	if err != nil {
@@ -80,7 +76,6 @@ func TestStream_Success(t *testing.T) {
 	}
 	old := os.Stdout
 	os.Stdout = w
-	p := New()
 	if err := p.Stream("gpt-4", "prompt"); err != nil {
 		w.Close()
 		os.Stdout = old
@@ -106,8 +101,7 @@ func TestChat(t *testing.T) {
 	}
 	// Stub HTTP client for Prompt
 	data := `{"choices":[{"message":{"content":"out"}}]}`
-	httpclient.SetClient(&fakeClient{resp: &http.Response{Body: io.NopCloser(bytes.NewBufferString(data))}})
-	defer httpclient.SetClient(http.DefaultClient)
+	p := NewWithClient(&fakeClient{resp: &http.Response{Body: io.NopCloser(bytes.NewBufferString(data))}})
 	// Prepare stdin with a single message and EOF
 	pr, pw, err := os.Pipe()
 	if err != nil {
@@ -124,7 +118,6 @@ func TestChat(t *testing.T) {
 	os.Stdout = wOut
 	defer func() { os.Stdout = oldStdout }()
 
-	p := New()
 	if err := p.Chat("gpt-4"); err != nil {
 		t.Fatalf("Chat error: %v", err)
 	}
@@ -161,9 +154,8 @@ func TestPrompt_HTTPError(t *testing.T) {
 	if err := config.SetAPIKey("openai", "key"); err != nil {
 		t.Fatalf("SetAPIKey: %v", err)
 	}
-	httpclient.SetClient(&fakeClientErr{})
-	defer httpclient.SetClient(http.DefaultClient)
-	_, err := New().Prompt("gpt-4", "prompt")
+	p := NewWithClient(&fakeClientErr{})
+	_, err := p.Prompt("gpt-4", "prompt")
 	if err == nil || !strings.Contains(err.Error(), "fail") {
 		t.Errorf("expected HTTP error, got %v", err)
 	}
@@ -176,9 +168,8 @@ func TestPrompt_NoResponse(t *testing.T) {
 	}
 	// Stub HTTP client to return empty choices
 	data := `{"choices":[]}`
-	httpclient.SetClient(&fakeClient{resp: &http.Response{Body: io.NopCloser(bytes.NewBufferString(data))}})
-	defer httpclient.SetClient(http.DefaultClient)
-	_, err := New().Prompt("gpt-4", "prompt")
+	p := NewWithClient(&fakeClient{resp: &http.Response{Body: io.NopCloser(bytes.NewBufferString(data))}})
+	_, err := p.Prompt("gpt-4", "prompt")
 	if err == nil || !strings.Contains(err.Error(), "no response from openai") {
 		t.Errorf("expected no response error, got %v", err)
 	}
@@ -191,9 +182,8 @@ func TestPrompt_InvalidJSON(t *testing.T) {
 		t.Fatalf("SetAPIKey: %v", err)
 	}
 	// Stub HTTP client to return invalid JSON
-	httpclient.SetClient(&fakeClient{resp: &http.Response{Body: io.NopCloser(bytes.NewBufferString("invalid"))}})
-	defer httpclient.SetClient(http.DefaultClient)
-	_, err := New().Prompt("gpt-4", "prompt")
+	p := NewWithClient(&fakeClient{resp: &http.Response{Body: io.NopCloser(bytes.NewBufferString("invalid"))}})
+	_, err := p.Prompt("gpt-4", "prompt")
 	if err == nil {
 		t.Error("expected JSON unmarshal error, got nil")
 	}
