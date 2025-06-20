@@ -8,6 +8,8 @@ A fast CLI for chatting with your favorite language models.
 - **Streaming responses**: Watch responses appear in real-time
 - **Interactive chat mode**: Have conversations with your language models
 - **One-shot prompts**: Quick questions without starting a chat session
+- **Raw output mode**: Get clean, unformatted responses for scripting
+- **Stdin support**: Pipe input directly to the model
 - **Smart defaults**: Set your preferred model and forget about it
 - **Simple setup**: Just add your API keys and you're ready to go
 
@@ -64,6 +66,24 @@ q -m openai/gpt-4o "Write a Python function to sort a list"
 
 # Disable streaming (get response all at once)
 q --no-stream "What are the benefits of meditation?"
+
+# Get raw output (no formatting)
+q -r "Return only a JSON object with name and age"
+```
+
+### Reading from stdin
+
+Pipe input directly to the model:
+
+```sh
+# Pipe text to the model
+echo "Convert this to uppercase" | q -
+
+# Use with raw output for scripting
+echo "this [unstructured] data [should] be structured. first word should be key and the [] word should be value. return only json and no other text, not even json fence" | q -r - | jq
+
+# Process files
+cat data.txt | q -r -m openai/gpt-4o "Summarize this text in one sentence"
 ```
 
 ### Interactive chat mode
@@ -79,6 +99,30 @@ q chat -m anthropic/claude-3.5-haiku-20241022
 
 # Disable streaming
 q chat --no-stream
+
+# Raw output mode (no "you:" or "model:" prefixes)
+q chat -r
+```
+
+### Raw output mode
+
+Get clean, unformatted responses perfect for scripting and automation:
+
+```sh
+# Regular output
+q "What's 2+2?"
+# Output: model (openai/gpt-4o): 2+2 equals 4
+
+# Raw output
+q -r "What's 2+2?"
+# Output: 2+2 equals 4
+
+# Perfect for JSON processing
+q -r "Return a JSON object with name: John, age: 30" | jq '.name'
+# Output: "John"
+
+# Combine with stdin for powerful workflows
+echo "Extract the email addresses from this text: contact@example.com and support@test.org" | q -r - | grep -o '[^@]*@[^@]*'
 ```
 
 ### Available models
@@ -150,8 +194,11 @@ q default set -m anthropic/claude-3.5-haiku-20241022
 ### Commands
 - `q [prompt]`: Send a one-shot prompt
   - `--no-stream`: Disable streaming output
+  - `--raw, -r`: Return raw model output (no formatting)
+  - `-`: Read prompt from stdin
 - `q chat`: Start interactive chat mode
   - `--no-stream`: Disable streaming output
+  - `--raw, -r`: Return raw model output (no "you:" or "model:" prefixes)
 - `q models list`: List all available models
 - `q keys list`: Show configured API keys
 - `q keys set -p <name> -k <key>`: Set API key (or `--provider` and `--key`)
@@ -159,6 +206,33 @@ q default set -m anthropic/claude-3.5-haiku-20241022
 - `q default list`: Show current default model
 - `q default set -m <model>`: Set default model (or `--model`)
 - `q version`: Show version information
+
+### Examples
+
+**Basic usage:**
+```sh
+q "Hello, how are you?"
+q -m openai/gpt-4o "Write a haiku about programming"
+```
+
+**Raw output for scripting:**
+```sh
+q -r "Return only a number between 1-10"
+q -r "Generate a JSON object with random user data" | jq
+```
+
+**Stdin processing:**
+```sh
+echo "Hello world" | q -
+cat file.txt | q -r - "Summarize this text"
+```
+
+**Interactive chat:**
+```sh
+q chat
+q chat -r  # Raw mode without prefixes
+q chat -m anthropic/claude-3.5-haiku-20241022
+```
 
 ## Why?
 

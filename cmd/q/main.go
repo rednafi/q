@@ -6,16 +6,15 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 
+	"github.com/spf13/cobra"
 	"q/internal/config"
 	"q/internal/providers"
 	"q/internal/providers/anthropic"
 	"q/internal/providers/google"
 	"q/internal/providers/openai"
-	"slices"
-
-	"github.com/spf13/cobra"
 )
 
 // Version information set during build
@@ -67,9 +66,27 @@ func (cli *CLI) createRootCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("failed to parse --no-stream flag: %w", err)
 			}
+			raw, err := cmd.Flags().GetBool("raw")
+			if err != nil {
+				return fmt.Errorf("failed to parse --raw flag: %w", err)
+			}
 			if len(args) == 0 {
 				return cmd.Help()
 			}
+
+			// Handle stdin reading with "-"
+			prompt := args[0]
+			if prompt == "-" {
+				bytes, err := io.ReadAll(os.Stdin)
+				if err != nil {
+					return fmt.Errorf("error reading from stdin: %w", err)
+				}
+				prompt = strings.TrimSpace(string(bytes))
+				if prompt == "" {
+					return errors.New("no input provided via stdin")
+				}
+			}
+
 			if model == "" {
 				m, err := config.GetDefaultModel()
 				if err != nil {
@@ -101,19 +118,28 @@ func (cli *CLI) createRootCmd() *cobra.Command {
 			}
 			if !noStream {
 				if streamer, ok := p.(interface{ Stream(string, string) error }); ok {
-					fmt.Printf("model (%s/%s): ", provider, mdl)
-					if err := streamer.Stream(mdl, args[0]); err != nil {
+					if !raw {
+						fmt.Printf("model (%s/%s): ", provider, mdl)
+					}
+					if err := streamer.Stream(mdl, prompt); err != nil {
 						return fmt.Errorf("error during prompt: %w", err)
 					}
-					fmt.Println()
+					if !raw {
+						fmt.Println()
+					}
 					return nil
 				}
 			}
-			resp, err := p.Prompt(mdl, args[0])
+			resp, err := p.Prompt(mdl, prompt)
 			if err != nil {
 				return fmt.Errorf("error during prompt: %w", err)
 			}
-			fmt.Printf("model (%s/%s): %s\n", provider, mdl, resp)
+			if raw {
+				fmt.Print(resp)
+			} else {
+				fmt.Printf("model (%s/%s): %s\n", provider, mdl, resp)
+				fmt.Println()
+			}
 			return nil
 		},
 	}
@@ -134,6 +160,10 @@ func (cli *CLI) createChatCmd() *cobra.Command {
 			noStream, err := cmd.Flags().GetBool("no-stream")
 			if err != nil {
 				return fmt.Errorf("failed to parse --no-stream flag: %w", err)
+			}
+			raw, err := cmd.Flags().GetBool("raw")
+			if err != nil {
+				return fmt.Errorf("failed to parse --raw flag: %w", err)
 			}
 			if model == "" {
 				m, err := config.GetDefaultModel()
@@ -164,7 +194,9 @@ func (cli *CLI) createChatCmd() *cobra.Command {
 			if !noStream {
 				reader := bufio.NewReader(os.Stdin)
 				for {
-					fmt.Print("you: ")
+					if !raw {
+						fmt.Print("you: ")
+					}
 					text, err := reader.ReadString('\n')
 					if err != nil {
 						if err == io.EOF {
@@ -176,18 +208,29 @@ func (cli *CLI) createChatCmd() *cobra.Command {
 					if text == "" {
 						continue
 					}
-					fmt.Printf("model (%s/%s): ", provider, mdl)
+					if !raw {
+						fmt.Printf("model (%s/%s): ", provider, mdl)
+					}
 					if streamer, ok := p.(interface{ Stream(string, string) error }); ok {
 						if err := streamer.Stream(mdl, text); err != nil {
 							return fmt.Errorf("error during chat: %w", err)
 						}
-						fmt.Println()
+						if !raw {
+							fmt.Println()
+						}
 					} else {
 						resp, err := p.Prompt(mdl, text)
 						if err != nil {
 							return fmt.Errorf("error during chat: %w", err)
 						}
-						fmt.Printf("%s\n", resp)
+						if raw {
+							fmt.Print(resp)
+						} else {
+							fmt.Printf("%s\n", resp)
+						}
+					}
+					if !raw {
+						fmt.Println()
 					}
 				}
 			}
@@ -367,11 +410,13 @@ func (cli *CLI) CreateRootCommand() *cobra.Command {
 	// flag wiring
 	rootCmd.Flags().StringP("model", "m", "", "provider/model")
 	rootCmd.Flags().Bool("no-stream", false, "Disable streaming output")
+	rootCmd.Flags().BoolP("raw", "r", false, "Return raw model output")
 
 	// Create subcommands
 	chatCmd := cli.createChatCmd()
 	chatCmd.Flags().StringP("model", "m", "", "provider/model")
 	chatCmd.Flags().Bool("no-stream", false, "Disable streaming output")
+	chatCmd.Flags().BoolP("raw", "r", false, "Return raw model output")
 
 	modelsCmd := cli.createModelsCmd()
 	keysCmd := cli.createKeysCmd()

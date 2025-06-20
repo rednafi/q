@@ -13,7 +13,7 @@ type Provider interface {
 	// (e.g., {"gpt-4", "gpt-4o"}).
 	SupportedModels() []string
 	// Prompt sends a one-shot prompt to the specified model.
-	Prompt(model string, prompt string) (string, error)
+	Prompt(model, prompt string) (string, error)
 	// Chat starts an interactive REPL session with the specified model.
 	Chat(model string) error
 }
