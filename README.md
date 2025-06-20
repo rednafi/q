@@ -49,7 +49,7 @@ brew install rednafi/tap/q
    q "What's the weather like today?"
    ```
 
-## 🎯 Usage
+## Usage
 
 ### One-shot prompts
 
@@ -119,7 +119,7 @@ q models list
 - `gemini-2.5-flash`
 - `gemini-2.5-flash-lite`
 
-## ⚙️ Configuration
+## Configuration
 
 ### Managing API keys
 
@@ -145,7 +145,7 @@ q default set -m openai/gpt-4o
 q default set -m anthropic/claude-3.5-haiku-20241022
 ```
 
-## 🔧 Command reference
+## Command reference
 
 ### Commands
 - `q [prompt]`: Send a one-shot prompt
