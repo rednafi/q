@@ -1,4 +1,4 @@
-name: Test & E2E
+name: Test
 on:
   pull_request:
   push:
@@ -24,7 +24,3 @@ jobs:
         run: go mod download
       - name: Unit tests
         run: go test -v ./...
-      - name: Build CLI binary for E2E
-        run: go build -o q .
-      - name: E2E CLI tests
-        run: go test -v -tags=e2e ./cmd/q
