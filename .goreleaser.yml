@@ -1,25 +1,64 @@
+# Build configuration
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Tag}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    binary: q
+
+# Archive configuration
+archives:
+  - format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+
+# Homebrew configuration
 brews:
   - name: q
     homepage: "https://github.com/rednafi/q"
     description: "A CLI tool for interacting with AI models"
 
+    # Formula will live at ./Formula/q.rb (capital "F" keeps Homebrew happy)
+    folder: Formula # ✅ use `folder`, not `directory`
 
-    directory: Formula
-
-    repository:
-      owner: rednafi              # same owner as the code repo
-      name:  q                    # same repo name
-      branch: main                
+    # Push the generated formula back to the same repo/branch
+    tap: # ✅ the correct key is `tap`, not `repository`
+      owner: rednafi
+      name: q # same repo as the code
+      branch: main
       token: "{{ .Env.GITHUB_TOKEN }}"
 
     commit_author:
       name: GitHub Actions
-      email: actions@github.com
+      email: 41898282+github-actions[bot]@users.noreply.github.com
+
+    # These fields are required for Homebrew to know the version and download URL
+    url: "https://github.com/rednafi/q/releases/download/{{ .Version }}/q_{{ .Version }}_darwin_amd64.tar.gz"
+    sha256: "{{ .SHA256 }}"
 
     test: |
       system "#{bin}/q", "--help"
     install: |
       bin.install "q"
 
+    # Homebrew build-time dependency on Go
     dependencies:
-      - go
+      - name: go
+        type: build
