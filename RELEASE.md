@@ -46,13 +46,13 @@ After a release, users can install the CLI via Homebrew:
 
 ```bash
 # Install directly from this repository
-brew install rednafi/canvas/q
+brew install rednafi/q
 ```
 
 Or if you prefer to add it as a tap first:
 ```bash
 # Add this repository as a tap
-brew tap rednafi/canvas
+brew tap rednafi
 
 # Install the CLI
 brew install q
