@@ -59,8 +59,9 @@ func createCancellableContext() context.Context {
 
 	go func() {
 		<-sigChan
-		fmt.Println("\nReceived interrupt signal, cancelling...")
+		fmt.Println("\nReceived Ctrl + C, quitting...")
 		cancel()
+		os.Exit(0)
 	}()
 
 	return ctx

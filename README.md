@@ -5,15 +5,13 @@ LLM in the Shell™.
 
 ## Features
 
-- **Multi-model support**: I got tired after trying to make Gemini streaming API work. So it's only OpenAI for now.
-But extending for other vendors is easy (maybe).
+- **Multi vendor**: Multi vendor support (currently only OpenAI models)
 - **Streaming responses**: Watch responses appear in real-time
 - **Interactive chat mode**: Have conversations with your language models
 - **One-shot prompts**: Quick questions without starting a chat session
 - **Raw output mode**: Get clean, unformatted responses for scripting
 - **Stdin support**: Pipe input directly to the model
 - **Smart defaults**: Set your preferred model and forget about it
-- **Simple setup**: Just add your API key and you're ready to go
 
 ## Quick start
 
