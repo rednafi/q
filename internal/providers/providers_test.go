@@ -1,6 +1,7 @@
 package providers_test
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
@@ -12,10 +13,24 @@ type dummyProvider struct {
 	name string
 }
 
-func (d *dummyProvider) Name() string                                { return d.name }
-func (d *dummyProvider) SupportedModels() []string                   { return []string{} }
-func (d *dummyProvider) Prompt(model, prompt string) (string, error) { return "", nil }
-func (d *dummyProvider) Chat(model string) error                     { return nil }
+func (d *dummyProvider) Name() string              { return d.name }
+func (d *dummyProvider) SupportedModels() []string { return []string{} }
+func (d *dummyProvider) Prompt(ctx context.Context, model, prompt string) (string, error) {
+	return "", nil
+}
+
+func (d *dummyProvider) Stream(ctx context.Context, model, prompt string) (string, error) {
+	return "", nil
+}
+
+func (d *dummyProvider) ChatPrompt(ctx context.Context, model, message string) (string, error) {
+	return "", nil
+}
+
+func (d *dummyProvider) ChatStream(ctx context.Context, model, message string) (string, error) {
+	return "", nil
+}
+func (d *dummyProvider) ResetChat() {}
 
 func TestRegistryStruct(t *testing.T) {
 	// Test Registry struct directly

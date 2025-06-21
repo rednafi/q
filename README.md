@@ -1,17 +1,19 @@
 # q
 
-A fast CLI for chatting with your favorite language models.
+LLM in your shell.
+
 
 ## Features
 
-- **Multi-provider support**: OpenAI, Anthropic Claude, and Google Gemini
+- **Multi-model support**: I got tired after trying to make Gemini streaming API work. So it's only OpenAI for now.
+But extending for other vendors is easy (maybe).
 - **Streaming responses**: Watch responses appear in real-time
 - **Interactive chat mode**: Have conversations with your language models
 - **One-shot prompts**: Quick questions without starting a chat session
 - **Raw output mode**: Get clean, unformatted responses for scripting
 - **Stdin support**: Pipe input directly to the model
 - **Smart defaults**: Set your preferred model and forget about it
-- **Simple setup**: Just add your API keys and you're ready to go
+- **Simple setup**: Just add your API key and you're ready to go
 
 ## Quick start
 
@@ -28,25 +30,25 @@ brew install rednafi/q
 
 ### Setup
 
-1. **Get your API keys**:
+1. **Get your API key**:
    - [OpenAI API Key](https://platform.openai.com/api-keys)
-   - [Anthropic API Key](https://console.anthropic.com/)
-   - [Google AI Studio API Key](https://makersuite.google.com/app/apikey)
 
-2. **Configure your keys (you can choose to do only any one of them)**:
+2. **Configure your key**:
    ```sh
    q keys set -p openai -k sk-your-openai-key
-   q keys set -p anthropic -k sk-ant-your-anthropic-key
-   q keys set -p google -k your-google-api-key
    ```
 
-3. **Set your default model**:
+3. **List the available models**:
+   ```sh
+   q models list
+   ```
+
+4. **Set your default model**:
    ```sh
    q default set -m openai/gpt-4o
-   q default set -m anthropic/claude-3.5-haiku-20241022
    ```
 
-4. **Start chatting**:
+5. **Start chatting**:
    ```sh
    q "What's the weather like today?"
    ```
@@ -96,9 +98,6 @@ Start a conversation with your AI model:
 # Use default model
 q chat
 
-# Specify a model
-q chat -m anthropic/claude-3.5-haiku-20241022
-
 # Disable streaming
 q chat --no-stream
 
@@ -125,7 +124,8 @@ q -r "Return a JSON object with name: John, age: 30" | jq '.name'
 
 # Combine with stdin for powerful workflows
 echo "Extract the email addresses from this text: contact@example.com and \
-  support@test.org" | q -r - | grep -o '[^@]*@[^@]*'```
+  support@test.org" | q -r - | grep -o '[^@]*@[^@]*'
+```
 
 ### Available models
 
@@ -147,23 +147,6 @@ q models list
 - `o3`
 - `o3-pro`
 - `o4-mini`
-
-**Anthropic Claude models:**
-- `claude-opus-4-20250514`
-- `claude-sonnet-4-20250514`
-- `claude-3.7-sonnet-20250219`
-- `claude-3.5-haiku-20241022`
-
-**Google Gemini models:**
-- `gemini-1.0-pro`
-- `gemini-1.0-pro-vision`
-- `gemini-1.5-pro`
-- `gemini-1.5-flash`
-- `gemini-2.0-flash`
-- `gemini-2.0-flash-lite`
-- `gemini-2.5-pro`
-- `gemini-2.5-flash`
-- `gemini-2.5-flash-lite`
 
 ## Configuration
 
@@ -188,7 +171,6 @@ q default list
 
 # Set a new default
 q default set -m openai/gpt-4o
-q default set -m anthropic/claude-3.5-haiku-20241022
 ```
 
 ## Command reference

@@ -9,6 +9,7 @@ import (
 // Config is the unified configuration payload stored at $XDG_CONFIG_HOME/q/config.json.
 // It contains the default model and API keys for all providers.
 type Config struct {
+	Comment      string            `json:"// Note,omitempty"`
 	DefaultModel string            `json:"default_model"`
 	APIKeys      map[string]string `json:"api_keys"`
 }
@@ -68,6 +69,10 @@ func SaveConfig(cfg Config) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
+
+	// Add warning comment about API credentials
+	cfg.Comment = "This file stores secret API credentials. Do not share!"
+
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return err

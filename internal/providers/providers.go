@@ -1,21 +1,39 @@
 package providers
 
 import (
+	"context"
+	"fmt"
 	"slices"
 	"sync"
 )
 
-// Provider is implemented by all vendor backends (e.g. OpenAI, Google).
+// Provider is implemented by all vendor backends (e.g. OpenAI).
 type Provider interface {
-	// Name returns the vendor identifier (e.g., "openai", "google").
+	// Name returns the vendor identifier (e.g., "openai").
 	Name() string
+
 	// SupportedModels returns the list of model identifiers for this provider
 	// (e.g., {"gpt-4", "gpt-4o"}).
 	SupportedModels() []string
+
 	// Prompt sends a one-shot prompt to the specified model.
-	Prompt(model, prompt string) (string, error)
-	// Chat starts an interactive REPL session with the specified model.
-	Chat(model string) error
+	Prompt(ctx context.Context, model, prompt string) (string, error)
+
+	// Stream sends a one-shot prompt and streams the response as tokens.
+	// Returns the full response and any error.
+	Stream(ctx context.Context, model, prompt string) (string, error)
+
+	// ChatPrompt sends a message in a conversation context and returns the full response.
+	// It maintains conversation history internally.
+	ChatPrompt(ctx context.Context, model, message string) (string, error)
+
+	// ChatStream sends a message in a conversation context and streams the response.
+	// It maintains conversation history internally.
+	// Returns the full response and any error.
+	ChatStream(ctx context.Context, model, message string) (string, error)
+
+	// ResetChat clears the conversation history for the provider.
+	ResetChat()
 }
 
 // Registry stores and manages named providers.
@@ -64,4 +82,19 @@ func (r *Registry) Names() []string {
 	}
 	slices.Sort(names)
 	return names
+}
+
+// InvalidAPIKeyError represents an invalid API key error that any provider can return
+type InvalidAPIKeyError struct {
+	Provider string
+}
+
+func (e *InvalidAPIKeyError) Error() string {
+	return fmt.Sprintf("Invalid API key for %s. Set your key with:\n  q keys set --provider %s --key YOUR_API_KEY", e.Provider, e.Provider)
+}
+
+// IsInvalidAPIKeyError checks if an error is an InvalidAPIKeyError
+func IsInvalidAPIKeyError(err error) bool {
+	_, ok := err.(*InvalidAPIKeyError)
+	return ok
 }

@@ -21,7 +21,7 @@
 
 * q models list
 
-  * prints available model identifiers (e.g., openai/gpt-4, google/gemini-pro)
+  * prints available model identifiers (e.g., openai/gpt-4o)
   * used for reference or scripting
 
 * q keys set --provider provider-name --key key
@@ -29,7 +29,7 @@
   * sets and saves an API key for a model provider
   * only allowed outside of q "prompt" or q chat invocations
   * keys stored at \$XDG\_CONFIG\_HOME/q/config.json in JSON format
-  * format: { "openai": "...", "google": "..." }
+  * format: { "openai": "..." }
 
 
 * q keys list

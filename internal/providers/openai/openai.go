@@ -3,192 +3,233 @@ package openai
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
+	"sync"
 
 	"q/internal/config"
 	"q/internal/httpclient"
+	"q/internal/providers"
 )
 
-// Provider implements the openai provider.
-// It holds an HTTP client for making requests, enabling dependency injection.
+const (
+	defaultAPIURL = "https://api.openai.com/v1/chat/completions"
+	errKeyFmt     = "no API key set for %s; use 'q keys set --provider %[1]s --key KEY'"
+	ssePrefix     = "data: "
+)
+
+// APIError represents an error response from the OpenAI API
+type APIError struct {
+	Error struct {
+		Message string `json:"message"`
+		Type    string `json:"type"`
+		Code    string `json:"code"`
+	} `json:"error"`
+}
+
+// parseAPIError attempts to parse an API error response and return a helpful message
+func parseAPIError(providerName string, statusCode int, body []byte) error {
+	// Try to parse as API error
+	var apiErr APIError
+	if err := json.Unmarshal(body, &apiErr); err == nil {
+		// Check for invalid API key error
+		if statusCode == http.StatusUnauthorized ||
+			strings.Contains(apiErr.Error.Code, "invalid_api_key") ||
+			strings.Contains(apiErr.Error.Message, "Incorrect API key") {
+			return &providers.InvalidAPIKeyError{Provider: providerName}
+		}
+		// Return the original API error message for other cases
+		return fmt.Errorf("API error: %s", apiErr.Error.Message)
+	}
+
+	// Fallback to generic error
+	return fmt.Errorf("API request failed with status %d: %s", statusCode, string(body))
+}
+
+type Message struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type chatRequest struct {
+	Model    string    `json:"model"`
+	Messages []Message `json:"messages"`
+	Stream   bool      `json:"stream,omitempty"`
+}
+
+type chatResponse struct {
+	Choices []struct {
+		Message struct {
+			Content string `json:"content"`
+		} `json:"message"`
+		Delta struct {
+			Content string `json:"content"`
+		} `json:"delta"`
+	} `json:"choices"`
+}
+
 type Provider struct {
 	client httpclient.HTTPClient
+	apiURL string
+
+	mu   sync.Mutex
+	hist []Message
 }
 
-// New returns a new OpenAI Provider using the default HTTP client.
-func New() *Provider {
-	return &Provider{client: http.DefaultClient}
+func NewProvider(opts ...func(*Provider)) *Provider {
+	p := &Provider{client: http.DefaultClient, apiURL: defaultAPIURL}
+	for _, o := range opts {
+		o(p)
+	}
+	return p
 }
 
-// NewWithClient returns a new OpenAI Provider with the provided HTTP client.
-func NewWithClient(c httpclient.HTTPClient) *Provider {
-	return &Provider{client: c}
-}
+// ------------------------------------------------------------------
+// Public API
+// ------------------------------------------------------------------
 
-// Name returns the vendor name.
 func (p *Provider) Name() string { return "openai" }
 
-// SupportedModels lists the OpenAI model identifiers.
 func (p *Provider) SupportedModels() []string {
 	return []string{
-		"gpt-3.5-turbo",
-		"gpt-3.5-turbo-0613",
-		"gpt-4o",
-		"gpt-4o-mini",
-		"gpt-4.1",
-		"gpt-4.1-mini",
-		"gpt-4.1-nano",
-		"o3-mini",
-		"o3",
-		"o3-pro",
-		"o4-mini",
+		"gpt-3.5-turbo", "gpt-3.5-turbo-0613",
+		"gpt-4o", "gpt-4o-mini",
+		"gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano",
+		"o3-mini", "o3", "o3-pro", "o4-mini",
 	}
 }
 
-// Prompt sends a one-shot prompt to the OpenAI Chat Completions API.
-func (p *Provider) Prompt(model, prompt string) (string, error) {
+// Prompt: one-shot, non-streaming.
+func (p *Provider) Prompt(ctx context.Context, model, prompt string) (string, error) {
+	return p.send(ctx, model, []Message{{Role: "user", Content: prompt}}, false, nil)
+}
+
+// Stream: one-shot, streaming; returns the full reply too.
+func (p *Provider) Stream(ctx context.Context, model, prompt string) (string, error) {
+	var buf strings.Builder
+	_, err := p.send(ctx, model, []Message{{Role: "user", Content: prompt}}, true, func(s string) {
+		fmt.Print(s)
+		buf.WriteString(s)
+	})
+	return buf.String(), err
+}
+
+// ChatPrompt: keeps conversation history.
+func (p *Provider) ChatPrompt(ctx context.Context, model, msg string) (string, error) {
+	p.appendHistory("user", msg)
+	out, err := p.send(ctx, model, p.historyCopy(), false, nil)
+	if err == nil {
+		p.appendHistory("assistant", out)
+	}
+	return out, err
+}
+
+// ChatStream: streaming with history; returns the collected reply.
+func (p *Provider) ChatStream(ctx context.Context, model, msg string) (string, error) {
+	p.appendHistory("user", msg)
+
+	var buf strings.Builder
+	_, err := p.send(ctx, model, p.historyCopy(), true, func(s string) {
+		fmt.Print(s)
+		buf.WriteString(s)
+	})
+	if err == nil && buf.Len() > 0 {
+		p.appendHistory("assistant", buf.String())
+	}
+	return buf.String(), err
+}
+
+// ResetChat clears history.
+func (p *Provider) ResetChat() { p.mu.Lock(); p.hist = nil; p.mu.Unlock() }
+
+// ------------------------------------------------------------------
+// Internals
+// ------------------------------------------------------------------
+
+func (p *Provider) send(
+	ctx context.Context,
+	model string,
+	msgs []Message,
+	stream bool,
+	onDelta func(string),
+) (string, error) {
 	key, err := config.GetAPIKey(p.Name())
 	if err != nil {
 		return "", err
 	}
 	if key == "" {
-		return "", fmt.Errorf("no API key set for %s; use 'q set key --provider %s --key KEY'", p.Name(), p.Name())
+		return "", fmt.Errorf(errKeyFmt, p.Name())
 	}
-	body := map[string]any{
-		"model":    model,
-		"messages": []map[string]string{{"role": "user", "content": prompt}},
-	}
-	data, err := json.Marshal(body)
-	if err != nil {
-		return "", err
-	}
-	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewReader(data))
-	if err != nil {
-		return "", err
-	}
+
+	body, _ := json.Marshal(chatRequest{Model: model, Messages: msgs, Stream: stream})
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, p.apiURL, bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+key)
 	req.Header.Set("Content-Type", "application/json")
+
 	resp, err := p.client.Do(req)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
-	respData, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
 
-	// Check for HTTP error status
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(respData))
+		body, _ := io.ReadAll(resp.Body)
+		return "", parseAPIError(p.Name(), resp.StatusCode, body)
 	}
 
-	var res struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-	}
-	if err := json.Unmarshal(respData, &res); err != nil {
-		return "", fmt.Errorf("failed to parse response: %w", err)
-	}
-	if len(res.Choices) == 0 {
-		return "", fmt.Errorf("no response from openai")
-	}
-	if res.Choices[0].Message.Content == "" {
-		return "", fmt.Errorf("no content in response from openai")
-	}
-	return res.Choices[0].Message.Content, nil
-}
-
-// Stream sends a one-shot prompt and streams the response as tokens.
-func (p *Provider) Stream(model, prompt string) error {
-	key, err := config.GetAPIKey(p.Name())
-	if err != nil {
-		return err
-	}
-	if key == "" {
-		return fmt.Errorf("no API key set for %s; use 'q keys set --provider %s --key KEY'", p.Name(), p.Name())
-	}
-	body := map[string]any{
-		"model":    model,
-		"messages": []map[string]string{{"role": "user", "content": prompt}},
-		"stream":   true,
-	}
-	data, err := json.Marshal(body)
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewReader(data))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+key)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := p.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	reader := bufio.NewReader(resp.Body)
-	for {
-		line, err := reader.ReadBytes('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return err
+	// ---------------- Non-streaming ----------------
+	if !stream {
+		var res chatResponse
+		if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+			return "", err
 		}
-		if len(line) < 6 || !bytes.HasPrefix(line, []byte("data: ")) {
+		if len(res.Choices) == 0 || res.Choices[0].Message.Content == "" {
+			return "", errors.New("openai: empty response")
+		}
+		return res.Choices[0].Message.Content, nil
+	}
+
+	// ---------------- Streaming ----------------
+	scanner := bufio.NewScanner(resp.Body)
+	var full strings.Builder
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, ssePrefix) {
 			continue
 		}
-		chunkData := line[6:]
-		if bytes.Equal(bytes.TrimSpace(chunkData), []byte("[DONE]")) {
+		data := strings.TrimPrefix(line, ssePrefix)
+		if data == "[DONE]" {
 			break
 		}
-		var chunk struct {
-			Choices []struct {
-				Delta struct {
-					Content string `json:"content"`
-				} `json:"delta"`
-			} `json:"choices"`
-		}
-		if err := json.Unmarshal(chunkData, &chunk); err != nil {
+		var chunk chatResponse
+		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
 			continue
 		}
-		if len(chunk.Choices) > 0 {
-			fmt.Print(chunk.Choices[0].Delta.Content)
+		if len(chunk.Choices) == 0 {
+			continue
 		}
+		part := chunk.Choices[0].Delta.Content
+		if onDelta != nil {
+			onDelta(part)
+		}
+		full.WriteString(part)
 	}
-	return nil
+	return full.String(), scanner.Err()
 }
 
-// Chat starts an interactive REPL with the specified model.
-func (p *Provider) Chat(model string) error {
-	reader := bufio.NewReader(os.Stdin)
-	for {
-		fmt.Print("you: ")
-		text, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				return nil
-			}
-			return err
-		}
-		text = strings.TrimSpace(text)
-		if text == "" {
-			continue
-		}
-		resp, err := p.Prompt(model, text)
-		if err != nil {
-			return err
-		}
-		fmt.Printf("model (%s/%s): %s\n", p.Name(), model, resp)
-	}
+func (p *Provider) appendHistory(role, content string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.hist = append(p.hist, Message{Role: role, Content: content})
+}
+
+func (p *Provider) historyCopy() []Message {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]Message(nil), p.hist...) // defensive copy
 }

@@ -2,19 +2,20 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"slices"
 	"strings"
+	"syscall"
 
 	"github.com/spf13/cobra"
 
 	"q/internal/config"
 	"q/internal/providers"
-	"q/internal/providers/anthropic"
-	"q/internal/providers/google"
 	"q/internal/providers/openai"
 )
 
@@ -37,9 +38,7 @@ type CLI struct {
 func NewCLI() *CLI {
 	registry := providers.NewRegistry()
 	registry.Register(
-		openai.New(),
-		google.New(),
-		anthropic.New(),
+		openai.NewProvider(),
 	)
 
 	return &CLI{
@@ -50,6 +49,133 @@ func NewCLI() *CLI {
 	}
 }
 
+// createCancellableContext creates a context that gets cancelled on Ctrl+C
+func createCancellableContext() context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Set up signal handling for Ctrl+C
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-sigChan
+		fmt.Println("\nReceived interrupt signal, cancelling...")
+		cancel()
+	}()
+
+	return ctx
+}
+
+// CommandFlags holds the common flags used across commands
+type CommandFlags struct {
+	Model    string
+	NoStream bool
+	Raw      bool
+}
+
+// parseCommonFlags extracts common flags from a command
+func (cli *CLI) parseCommonFlags(cmd *cobra.Command) (*CommandFlags, error) {
+	model, err := cmd.Flags().GetString("model")
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse --model flag: %w", err)
+	}
+	noStream, err := cmd.Flags().GetBool("no-stream")
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse --no-stream flag: %w", err)
+	}
+	raw, err := cmd.Flags().GetBool("raw")
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse --raw flag: %w", err)
+	}
+
+	return &CommandFlags{
+		Model:    model,
+		NoStream: noStream,
+		Raw:      raw,
+	}, nil
+}
+
+// setupModelAndProvider handles the common logic for model and provider setup
+func (cli *CLI) setupModelAndProvider(model string) (string, string, providers.Provider, error) {
+	if model == "" {
+		m, err := config.GetDefaultModel()
+		if err != nil {
+			return "", "", nil, fmt.Errorf("failed to load default model: %w", err)
+		}
+		if m == "" {
+			return "", "", nil, errors.New("no default model\n\nSet default: q default set --model provider/model\nOr specify: q --model provider/model")
+		}
+		model = m
+	}
+
+	parts := strings.SplitN(model, "/", 2)
+	if len(parts) != 2 {
+		return "", "", nil, errors.New("invalid model format\n\nUse: provider/model (e.g., openai/gpt-4o)")
+	}
+	provider, mdl := parts[0], parts[1]
+
+	p, ok := cli.registry.Lookup(provider)
+	if !ok {
+		return "", "", nil, fmt.Errorf("unknown provider: %s\n\nSee available: q models list", provider)
+	}
+	if !slices.Contains(p.SupportedModels(), mdl) {
+		return "", "", nil, fmt.Errorf("unsupported model '%s' for %s\n\nSee available: q models list", mdl, provider)
+	}
+
+	key, err := config.GetAPIKey(provider)
+	if err != nil {
+		return "", "", nil, fmt.Errorf("failed to read API key for %s: %w", provider, err)
+	}
+	if key == "" {
+		return "", "", nil, fmt.Errorf("no API key for %s\n\nSet key: q keys set --provider %s --key KEY", provider, provider)
+	}
+
+	return provider, mdl, p, nil
+}
+
+// readPromptFromStdin reads prompt from stdin when "-" is provided
+func readPromptFromStdin() (string, error) {
+	bytes, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return "", fmt.Errorf("error reading from stdin: %w", err)
+	}
+	prompt := strings.TrimSpace(string(bytes))
+	if prompt == "" {
+		return "", errors.New("no input provided via stdin")
+	}
+	return prompt, nil
+}
+
+// handleStreamingResponse handles streaming response with proper formatting
+func (cli *CLI) handleStreamingResponse(ctx context.Context, provider, model string, prompt string, raw bool, p providers.Provider) error {
+	if !raw {
+		fmt.Printf("model (%s/%s): ", provider, model)
+	}
+	_, err := p.Stream(ctx, model, prompt)
+	if err != nil {
+		return err
+	}
+	// Only add newline if not raw mode
+	if !raw {
+		fmt.Println()
+	}
+	return nil
+}
+
+// handleNonStreamingResponse handles non-streaming response with proper formatting
+func (cli *CLI) handleNonStreamingResponse(ctx context.Context, provider, model string, prompt string, raw bool, p providers.Provider) error {
+	resp, err := p.Prompt(ctx, model, prompt)
+	if err != nil {
+		return err
+	}
+	if raw {
+		fmt.Print(resp)
+	} else {
+		fmt.Printf("model (%s/%s): %s\n", provider, model, resp)
+	}
+	return nil
+}
+
 // createRootCmd creates the root command with dependencies injected
 func (cli *CLI) createRootCmd() *cobra.Command {
 	return &cobra.Command{
@@ -58,90 +184,35 @@ func (cli *CLI) createRootCmd() *cobra.Command {
 		Args:         cobra.ArbitraryArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// read flags from command context
-			model, err := cmd.Flags().GetString("model")
-			if err != nil {
-				return fmt.Errorf("failed to parse --model flag: %w", err)
-			}
-			noStream, err := cmd.Flags().GetBool("no-stream")
-			if err != nil {
-				return fmt.Errorf("failed to parse --no-stream flag: %w", err)
-			}
-			raw, err := cmd.Flags().GetBool("raw")
-			if err != nil {
-				return fmt.Errorf("failed to parse --raw flag: %w", err)
-			}
 			if len(args) == 0 {
 				return cmd.Help()
+			}
+
+			flags, err := cli.parseCommonFlags(cmd)
+			if err != nil {
+				return err
 			}
 
 			// Handle stdin reading with "-"
 			prompt := args[0]
 			if prompt == "-" {
-				bytes, err := io.ReadAll(os.Stdin)
+				prompt, err = readPromptFromStdin()
 				if err != nil {
-					return fmt.Errorf("error reading from stdin: %w", err)
-				}
-				prompt = strings.TrimSpace(string(bytes))
-				if prompt == "" {
-					return errors.New("no input provided via stdin")
+					return err
 				}
 			}
 
-			if model == "" {
-				m, err := config.GetDefaultModel()
-				if err != nil {
-					return fmt.Errorf("error loading default: %w", err)
-				}
-				if m == "" {
-					return errors.New("no default model set; use 'q default set --model provider/model'")
-				}
-				model = m
-			}
-			parts := strings.SplitN(model, "/", 2)
-			if len(parts) != 2 {
-				return errors.New("invalid model format; use provider/model")
-			}
-			provider, mdl := parts[0], parts[1]
-			p, ok := cli.registry.Lookup(provider)
-			if !ok {
-				return fmt.Errorf("unknown provider: %s", provider)
-			}
-			if !slices.Contains(p.SupportedModels(), mdl) {
-				return fmt.Errorf("unsupported model for %s: %s", provider, mdl)
-			}
-			key, err := config.GetAPIKey(provider)
+			provider, model, p, err := cli.setupModelAndProvider(flags.Model)
 			if err != nil {
-				return fmt.Errorf("error reading keys: %w", err)
+				return err
 			}
-			if key == "" {
-				return fmt.Errorf("no API key set for %s; use 'q keys set --provider %s --key KEY'", provider, provider)
+
+			ctx := createCancellableContext()
+
+			if !flags.NoStream {
+				return cli.handleStreamingResponse(ctx, provider, model, prompt, flags.Raw, p)
 			}
-			if !noStream {
-				if streamer, ok := p.(interface{ Stream(string, string) error }); ok {
-					if !raw {
-						fmt.Printf("model (%s/%s): ", provider, mdl)
-					}
-					if err := streamer.Stream(mdl, prompt); err != nil {
-						return fmt.Errorf("error during prompt: %w", err)
-					}
-					if !raw {
-						fmt.Println()
-					}
-					return nil
-				}
-			}
-			resp, err := p.Prompt(mdl, prompt)
-			if err != nil {
-				return fmt.Errorf("error during prompt: %w", err)
-			}
-			if raw {
-				fmt.Print(resp)
-			} else {
-				fmt.Printf("model (%s/%s): %s\n", provider, mdl, resp)
-				fmt.Println()
-			}
-			return nil
+			return cli.handleNonStreamingResponse(ctx, provider, model, prompt, flags.Raw, p)
 		},
 	}
 }
@@ -153,49 +224,34 @@ func (cli *CLI) createChatCmd() *cobra.Command {
 		Short:        "Start interactive REPL with a model",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// read CLI flags
-			model, err := cmd.Flags().GetString("model")
+			flags, err := cli.parseCommonFlags(cmd)
 			if err != nil {
-				return fmt.Errorf("failed to parse --model flag: %w", err)
+				return err
 			}
-			noStream, err := cmd.Flags().GetBool("no-stream")
+
+			provider, model, p, err := cli.setupModelAndProvider(flags.Model)
 			if err != nil {
-				return fmt.Errorf("failed to parse --no-stream flag: %w", err)
+				return err
 			}
-			raw, err := cmd.Flags().GetBool("raw")
-			if err != nil {
-				return fmt.Errorf("failed to parse --raw flag: %w", err)
-			}
-			if model == "" {
-				m, err := config.GetDefaultModel()
-				if err != nil {
-					return fmt.Errorf("error loading default: %w", err)
-				}
-				if m == "" {
-					return errors.New("no default model set; use 'q default set --model provider/model'")
-				}
-				model = m
-			}
-			parts := strings.SplitN(model, "/", 2)
-			provider, mdl := parts[0], parts[1]
-			p, ok := cli.registry.Lookup(provider)
-			if !ok {
-				return fmt.Errorf("unknown provider: %s", provider)
-			}
-			if !slices.Contains(p.SupportedModels(), mdl) {
-				return fmt.Errorf("unsupported model for %s: %s", provider, mdl)
-			}
-			key, err := config.GetAPIKey(provider)
-			if err != nil {
-				return fmt.Errorf("error reading keys: %w", err)
-			}
-			if key == "" {
-				return fmt.Errorf("no API key set for %s; use 'q keys set --provider %s --key KEY'", provider, provider)
-			}
-			if !noStream {
+
+			ctx := createCancellableContext()
+
+			if !flags.NoStream {
 				reader := bufio.NewReader(os.Stdin)
+				first := true
 				for {
-					if !raw {
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					default:
+						// Continue with normal flow
+					}
+
+					if !first && !flags.Raw {
+						fmt.Println()
+					}
+					first = false
+					if !flags.Raw {
 						fmt.Print("you: ")
 					}
 					text, err := reader.ReadString('\n')
@@ -209,36 +265,58 @@ func (cli *CLI) createChatCmd() *cobra.Command {
 					if text == "" {
 						continue
 					}
-					if !raw {
-						fmt.Printf("model (%s/%s): ", provider, mdl)
+					if !flags.Raw {
+						fmt.Printf("model (%s/%s): ", provider, model)
 					}
-					if streamer, ok := p.(interface{ Stream(string, string) error }); ok {
-						if err := streamer.Stream(mdl, text); err != nil {
-							return fmt.Errorf("error during chat: %w", err)
-						}
-						if !raw {
-							fmt.Println()
-						}
-					} else {
-						resp, err := p.Prompt(mdl, text)
-						if err != nil {
-							return fmt.Errorf("error during chat: %w", err)
-						}
-						if raw {
-							fmt.Print(resp)
-						} else {
-							fmt.Printf("%s\n", resp)
-						}
+					_, err = p.ChatStream(ctx, model, text)
+					if err != nil {
+						return err
 					}
-					if !raw {
+					if !flags.Raw {
 						fmt.Println()
 					}
 				}
+			} else {
+				// Non-streaming chat mode
+				reader := bufio.NewReader(os.Stdin)
+				first := true
+				for {
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					default:
+						// Continue with normal flow
+					}
+
+					if !first && !flags.Raw {
+						fmt.Println()
+					}
+					first = false
+					if !flags.Raw {
+						fmt.Print("you: ")
+					}
+					text, err := reader.ReadString('\n')
+					if err != nil {
+						if err == io.EOF {
+							return nil
+						}
+						return fmt.Errorf("error reading input: %w", err)
+					}
+					text = strings.TrimSpace(text)
+					if text == "" {
+						continue
+					}
+					resp, err := p.ChatPrompt(ctx, model, text)
+					if err != nil {
+						return err
+					}
+					if flags.Raw {
+						fmt.Print(resp)
+					} else {
+						fmt.Printf("model (%s/%s): %s\n", provider, model, resp)
+					}
+				}
 			}
-			if err := p.Chat(mdl); err != nil {
-				return fmt.Errorf("error during chat: %w", err)
-			}
-			return nil
 		},
 	}
 }
@@ -303,10 +381,20 @@ func (cli *CLI) createKeysCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			provider, _ := cmd.Flags().GetString("provider")
 			key, _ := cmd.Flags().GetString("key")
-			if provider == "" || key == "" {
+			if provider == "" {
 				_ = cmd.Help()
-				return errors.New("provider and key must be provided")
+				return errors.New("provider required")
 			}
+			if key == "" {
+				_ = cmd.Help()
+				return errors.New("API key required")
+			}
+
+			// Validate that the provider is supported
+			if _, ok := cli.registry.Lookup(provider); !ok {
+				return fmt.Errorf("unknown provider: %s\n\nSee available: q models list", provider)
+			}
+
 			if err := config.SetAPIKey(provider, key); err != nil {
 				return fmt.Errorf("error saving key: %w", err)
 			}
@@ -374,6 +462,22 @@ func (cli *CLI) createDefaultCmd() *cobra.Command {
 				_ = cmd.Help()
 				return errors.New("model must be provided with --model flag")
 			}
+
+			// Validate that the model is supported by a provider
+			parts := strings.SplitN(model, "/", 2)
+			if len(parts) != 2 {
+				return errors.New("invalid model format\n\nUse: provider/model (e.g., openai/gpt-4o)")
+			}
+			provider, mdl := parts[0], parts[1]
+
+			p, ok := cli.registry.Lookup(provider)
+			if !ok {
+				return fmt.Errorf("unknown provider: %s\n\nSee available: q models list", provider)
+			}
+			if !slices.Contains(p.SupportedModels(), mdl) {
+				return fmt.Errorf("unsupported model '%s' for %s\n\nSee available: q models list", mdl, provider)
+			}
+
 			if err := config.SetDefaultModel(model); err != nil {
 				return fmt.Errorf("error saving default: %w", err)
 			}
@@ -404,20 +508,21 @@ func (cli *CLI) createVersionCmd() *cobra.Command {
 	}
 }
 
+// addCommonFlags adds the common flags to a command
+func addCommonFlags(cmd *cobra.Command) {
+	cmd.Flags().StringP("model", "m", "", "provider/model")
+	cmd.Flags().Bool("no-stream", false, "Disable streaming output")
+	cmd.Flags().BoolP("raw", "r", false, "Return raw model output")
+}
+
 // CreateRootCommand creates the complete command tree with all dependencies
 func (cli *CLI) CreateRootCommand() *cobra.Command {
 	rootCmd := cli.createRootCmd()
-
-	// flag wiring
-	rootCmd.Flags().StringP("model", "m", "", "provider/model")
-	rootCmd.Flags().Bool("no-stream", false, "Disable streaming output")
-	rootCmd.Flags().BoolP("raw", "r", false, "Return raw model output")
+	addCommonFlags(rootCmd)
 
 	// Create subcommands
 	chatCmd := cli.createChatCmd()
-	chatCmd.Flags().StringP("model", "m", "", "provider/model")
-	chatCmd.Flags().Bool("no-stream", false, "Disable streaming output")
-	chatCmd.Flags().BoolP("raw", "r", false, "Return raw model output")
+	addCommonFlags(chatCmd)
 
 	modelsCmd := cli.createModelsCmd()
 	keysCmd := cli.createKeysCmd()
