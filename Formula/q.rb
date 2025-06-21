@@ -11,16 +11,16 @@ class Q < Formula
 
   on_macos do
     on_intel do
-      url "https://github.com/rednafi/q/releases/download/v0.1/q_Darwin_x86_64.tar.gz"
-      sha256 "7f8409b8e509b6063393dcde359e04abb64539cb379ec491a723381465dd7fd1"
+      url "https://github.com/rednafi/q/releases/download/v0.1/q_0.1_Darwin_x86_64.tar.gz"
+      sha256 "d7af5fb6c61ffbf27d6e76e4f0be875630007c8fc26fc132d7cde213c2c1f081"
 
       def install
         bin.install "q"
       end
     end
     on_arm do
-      url "https://github.com/rednafi/q/releases/download/v0.1/q_Darwin_arm64.tar.gz"
-      sha256 "9f7ad7ecbed9d396c2bb59f0cece54c21b5160be64b278a9afc01962a43bc17c"
+      url "https://github.com/rednafi/q/releases/download/v0.1/q_0.1_Darwin_arm64.tar.gz"
+      sha256 "51ec81324c3c51270c9c9030f07a2568c100335150dfe7db258529665b219e9e"
 
       def install
         bin.install "q"
@@ -31,8 +31,8 @@ class Q < Formula
   on_linux do
     on_intel do
       if Hardware::CPU.is_64_bit?
-        url "https://github.com/rednafi/q/releases/download/v0.1/q_Linux_x86_64.tar.gz"
-        sha256 "66fd959fb8a5c5ea6287456d7b2d76c3dca284415e1937f73a9dc5561e7186b3"
+        url "https://github.com/rednafi/q/releases/download/v0.1/q_0.1_Linux_x86_64.tar.gz"
+        sha256 "aa274ed2ad3e2b029c82218b1e8782f2daa454e73e83fcc757a1645e85835da4"
 
         def install
           bin.install "q"
@@ -41,8 +41,8 @@ class Q < Formula
     end
     on_arm do
       if Hardware::CPU.is_64_bit?
-        url "https://github.com/rednafi/q/releases/download/v0.1/q_Linux_arm64.tar.gz"
-        sha256 "49fdce2bc412abe1a1ee15549cc7b7cab25c0bc9bfc8d2715eca3fd0c168a9ba"
+        url "https://github.com/rednafi/q/releases/download/v0.1/q_0.1_Linux_arm64.tar.gz"
+        sha256 "d44740e449af32862a80f558905ad62c0d9f9ea3f6deb39550429637da330254"
 
         def install
           bin.install "q"
