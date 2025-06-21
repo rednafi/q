@@ -15,6 +15,7 @@ builds:
       - -X main.commit={{.Commit}}
       - -X main.date={{.Date}}
     binary: q
+    main: ./cmd/q
 
 # Archive configuration
 archives:
