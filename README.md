@@ -207,32 +207,6 @@ q default set -m anthropic/claude-3.5-haiku-20241022
 - `q default set -m <model>`: Set default model (or `--model`)
 - `q version`: Show version information
 
-### Examples
-
-**Basic usage:**
-```sh
-q "Hello, how are you?"
-q -m openai/gpt-4o "Write a haiku about programming"
-```
-
-**Raw output for scripting:**
-```sh
-q -r "Return only a number between 1-10"
-q -r "Generate a JSON object with random user data" | jq
-```
-
-**Stdin processing:**
-```sh
-echo "Hello world" | q -
-cat file.txt | q -r - "Summarize this text"
-```
-
-**Interactive chat:**
-```sh
-q chat
-q chat -r  # Raw mode without prefixes
-q chat -m anthropic/claude-3.5-haiku-20241022
-```
 
 ## Why?
 
