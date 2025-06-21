@@ -18,9 +18,12 @@ LLM in the Shell™.
 ### Installation
 
 ```sh
-# Using Homebrew (recommended)
-brew tap rednafi/q
-brew install q
+# 1. Add the tap (needs the full URL because the repo is **not** named homebrew-q)
+brew tap rednafi/q https://github.com/rednafi/q
+
+# 2. Install the formula
+brew install rednafi/q/q
+
 
 # Or download directly from GitHub releases
 # https://github.com/rednafi/q/releases
