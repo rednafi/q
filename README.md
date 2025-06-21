@@ -80,7 +80,9 @@ Pipe input directly to the model:
 echo "Convert this to uppercase" | q -
 
 # Use with raw output for scripting
-echo "this [unstructured] data [should] be structured. first word should be key and the [] word should be value. return only json and no other text, not even json fence" | q -r - | jq
+echo "this [unstructured] data [should] be structured. first word should be \
+  key and the [] word should be value. return only json and no other text, not \
+  even json fence" | q -r - | jq
 
 # Process files
 cat data.txt | q -r -m openai/gpt-4o "Summarize this text in one sentence"
@@ -122,8 +124,8 @@ q -r "Return a JSON object with name: John, age: 30" | jq '.name'
 # Output: "John"
 
 # Combine with stdin for powerful workflows
-echo "Extract the email addresses from this text: contact@example.com and support@test.org" | q -r - | grep -o '[^@]*@[^@]*'
-```
+echo "Extract the email addresses from this text: contact@example.com and \
+  support@test.org" | q -r - | grep -o '[^@]*@[^@]*'```
 
 ### Available models
 
