@@ -3,6 +3,12 @@ on:
   pull_request:
   push:
     branches: [main]
+
+# Cancel running workflows when new ones are triggered
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+  
 jobs:
   lint:
     runs-on: ubuntu-latest

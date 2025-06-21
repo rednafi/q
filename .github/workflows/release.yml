@@ -12,8 +12,13 @@ permissions:
   contents: write
   packages: write
 
+# Cancel running workflows when new ones are triggered
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -36,7 +41,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Alternative job that runs on manual trigger
-  manual-build:
+  manual-release:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
