@@ -49,10 +49,6 @@ brews:
       name: GitHub Actions
       email: 41898282+github-actions[bot]@users.noreply.github.com
 
-    # These fields are required for Homebrew to know the version and download URL
-    url: "https://github.com/rednafi/q/releases/download/{{ .Version }}/q_{{ .Version }}_darwin_amd64.tar.gz"
-    sha256: "{{ .SHA256 }}"
-
     test: |
       system "#{bin}/q", "--help"
     install: |
