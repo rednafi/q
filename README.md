@@ -20,7 +20,7 @@ A fast CLI for chatting with your favorite language models.
 ```sh
 # Download the latest release for your platform
 # macOS
-brew install rednafi/tap/q
+brew install rednafi/q
 
 # Or download directly from GitHub releases
 # https://github.com/rednafi/q/releases
