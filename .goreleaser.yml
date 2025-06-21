@@ -1,4 +1,3 @@
-# Build configuration
 builds:
   - env:
       - CGO_ENABLED=0
@@ -11,51 +10,37 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X main.version={{.Tag}}
-      - -X main.commit={{.Commit}}
-      - -X main.date={{.Date}}
+      - -X main.version={{ .Tag }}
+      - -X main.commit={{ .Commit }}
+      - -X main.date={{ .Date }}
     binary: q
     main: ./cmd/q
 
-# Archive configuration
 archives:
   - format: tar.gz
-    name_template: >-
-      {{ .ProjectName }}_{{ .Version }}_
-      {{- title .Os }}_
-      {{- if eq .Arch "amd64" }}x86_64
-      {{- else if eq .Arch "386" }}i386
-      {{- else }}{{ .Arch }}{{ end }}
+    name_template: >
+      {{ .ProjectName }}_{{ .Version }}_{{- title .Os }}_{{- if eq .Arch "amd64" }}x86_64{{- else if eq .Arch "386" }}i386{{- else }}{{ .Arch }}{{ end }}
     format_overrides:
       - goos: windows
         format: zip
 
-# Homebrew configuration
 brews:
   - name: q
-    homepage: "https://github.com/rednafi/q"
-    description: "A CLI tool for interacting with AI models"
-
-    # Formula will live at ./Formula/q.rb (capital "F" keeps Homebrew happy)
-    folder: Formula # ✅ use `folder`, not `directory`
-
-    # Push the generated formula back to the same repo/branch
-    tap: # ✅ the correct key is `tap`, not `repository`
+    homepage: https://github.com/rednafi/q
+    description: LLM in the Shell™
+    directory: Formula
+    repository:
       owner: rednafi
-      name: q # same repo as the code
+      name: q
       branch: main
       token: "{{ .Env.GITHUB_TOKEN }}"
-
     commit_author:
       name: GitHub Actions
       email: 41898282+github-actions[bot]@users.noreply.github.com
-
     test: |
       system "#{bin}/q", "--help"
     install: |
       bin.install "q"
-
-    # Homebrew build-time dependency on Go
     dependencies:
       - name: go
         type: build
