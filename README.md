@@ -1,6 +1,6 @@
 # q
 
-LLM in your shell.
+LLM in the Shell™.
 
 
 ## Features

@@ -180,7 +180,7 @@ func (cli *CLI) handleNonStreamingResponse(ctx context.Context, provider, model 
 func (cli *CLI) createRootCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:          "q [prompt]",
-		Short:        "A fast CLI for chatting with your favorite language models.",
+		Short:        "LLM in the Shell",
 		Args:         cobra.ArbitraryArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
