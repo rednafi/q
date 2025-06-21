@@ -18,9 +18,9 @@ LLM in the Shell™.
 ### Installation
 
 ```sh
-# Download the latest release for your platform
-# macOS
-brew install rednafi/q
+# Using Homebrew (recommended)
+brew tap rednafi/q
+brew install q
 
 # Or download directly from GitHub releases
 # https://github.com/rednafi/q/releases

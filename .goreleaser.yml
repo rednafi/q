@@ -60,7 +60,7 @@ brews:
     commit_author:
       name: GitHub Actions
       email: actions@github.com
-    folder: Formula
+    folder: homebrew-q
     test: |
       system "#{bin}/q", "--help"
     install: |
