@@ -67,8 +67,6 @@ brews:
       bin.install "q"
     dependencies:
       - go
-    conflicts_with:
-      - q-cli
 
 release:
   name_template: "{{ .Tag }}"
