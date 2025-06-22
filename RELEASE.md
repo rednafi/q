@@ -1,6 +1,9 @@
 # Release Process
 
-This project uses GitHub Actions and GoReleaser to automatically build and release the CLI tool. The project is built with Go 1.24 and uses modern Go features like `slices` package and improved performance optimizations.
+This project uses GitHub Actions and GoReleaser to automatically build and release 
+the CLI tool.
+The project is built with Go 1.24 and uses modern Go features like the `slices` package 
+and improved performance optimizations.
 
 ## Prerequisites
 
@@ -8,11 +11,13 @@ This project uses GitHub Actions and GoReleaser to automatically build and relea
 
 You need to set up the following secrets in your GitHub repository:
 
-1. **`GITHUB_TOKEN`** - Automatically provided by GitHub Actions (no additional setup needed)
+1. **`GITHUB_TOKEN`** - Automatically provided by GitHub Actions 
+   (no additional setup needed)
 
 ### Homebrew Formula
 
-The Homebrew formula is automatically generated and stored in the `Formula/` directory of this repository.
+The Homebrew formula is automatically generated and stored in the `Formula/` directory 
+of this repository.
 
 ## Release Process
 
@@ -29,7 +34,8 @@ The Homebrew formula is automatically generated and stored in the `Formula/` dir
    - The Test and Lint workflows complete successfully (after tests pass)
 
 3. **What happens**:
-   - GoReleaser builds the CLI for multiple platforms (Linux, macOS, Windows) using Go 1.24
+   - GoReleaser builds the CLI for multiple platforms (Linux, macOS, Windows) 
+     using Go 1.24
    - Creates a GitHub release with the binaries
    - Updates the Homebrew formula in the `Formula/` directory
 
@@ -74,7 +80,8 @@ The CLI is built for:
 ### Go 1.24 Features
 
 This project leverages Go 1.24 features:
-- **`slices` package**: For efficient slice operations like `slices.Contains` and `slices.Sort`
+- **`slices` package**: For efficient slice operations like `slices.Contains` and 
+  `slices.Sort`
 - **Improved performance**: Better compiler optimizations and runtime performance
 - **Enhanced tooling**: Better error messages and debugging support
 

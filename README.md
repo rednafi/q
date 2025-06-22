@@ -195,4 +195,5 @@ q default set -m openai/gpt-4o
 
 ## Why?
 
-There's no shortage of wrappers that call language models from your terminal. I wanted to have my own that's written in Go :)
+There's no shortage of wrappers that call language models from your terminal.
+I wanted to have my own that's written in Go :)

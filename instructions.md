@@ -73,7 +73,8 @@
 
 * behavior
 
-* any command other than `q models list`, `q keys list`, `q keys set`, `q keys path`, and `q default set` requires valid key to be set for target model
+* any command other than `q models list`, `q keys list`, `q keys set`, `q keys path`, and 
+  `q default set` requires valid key to be set for target model
 
 * config and key persistence
 
@@ -83,7 +84,7 @@
 * testing
 
   * go test ./...
-  * providers and plugin tests inject HTTPClient dependencies instead of patching global state
+* providers and plugin tests inject HTTPClient dependencies, instead of patching global state
   * use os/exec to simulate CLI behavior in test scripts
   * aim for full coverage of all commands and plugin integrations
 

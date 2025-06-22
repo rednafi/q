@@ -90,7 +90,12 @@ type InvalidAPIKeyError struct {
 }
 
 func (e *InvalidAPIKeyError) Error() string {
-	return fmt.Sprintf("Invalid API key for %s. Set your key with:\n  q keys set --provider %s --key YOUR_API_KEY", e.Provider, e.Provider)
+	return fmt.Sprintf(
+		"Invalid API key for %s. Set your key with:\n  "+
+			"q keys set --provider %s --key YOUR_API_KEY",
+		e.Provider,
+		e.Provider,
+	)
 }
 
 // IsInvalidAPIKeyError checks if an error is an InvalidAPIKeyError

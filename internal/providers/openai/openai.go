@@ -100,22 +100,28 @@ func (p *Provider) SupportedModels() []string {
 		"gpt-3.5-turbo", "gpt-3.5-turbo-0613",
 		"gpt-4o", "gpt-4o-mini",
 		"gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano",
-		"o3-mini", "o3", "o3-pro", "o4-mini",
+		"o3-mini", "o3", "o3-pro",
+		"o4-mini",
 	}
 }
 
 // Prompt: one-shot, non-streaming.
 func (p *Provider) Prompt(ctx context.Context, model, prompt string) (string, error) {
-	return p.send(ctx, model, []Message{{Role: "user", Content: prompt}}, false, nil)
+	return p.send(
+		ctx, model, []Message{{Role: "user", Content: prompt}}, false, nil,
+	)
 }
 
 // Stream: one-shot, streaming; returns the full reply too.
 func (p *Provider) Stream(ctx context.Context, model, prompt string) (string, error) {
 	var buf strings.Builder
-	_, err := p.send(ctx, model, []Message{{Role: "user", Content: prompt}}, true, func(s string) {
-		fmt.Print(s)
-		buf.WriteString(s)
-	})
+	_, err := p.send(
+		ctx, model, []Message{{Role: "user", Content: prompt}}, true,
+		func(s string) {
+			fmt.Print(s)
+			buf.WriteString(s)
+		},
+	)
 	return buf.String(), err
 }
 
@@ -167,7 +173,9 @@ func (p *Provider) send(
 	}
 
 	body, _ := json.Marshal(chatRequest{Model: model, Messages: msgs, Stream: stream})
-	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, p.apiURL, bytes.NewReader(body))
+	req, _ := http.NewRequestWithContext(
+		ctx, http.MethodPost, p.apiURL, bytes.NewReader(body),
+	)
 	req.Header.Set("Authorization", "Bearer "+key)
 	req.Header.Set("Content-Type", "application/json")
 
