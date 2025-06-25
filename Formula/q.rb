@@ -5,22 +5,22 @@
 class Q < Formula
   desc "LLM in the Shell™."
   homepage "https://github.com/rednafi/q"
-  version "0.2"
+  version "0.3"
 
   depends_on "go" => :build
 
   on_macos do
     on_intel do
-      url "https://github.com/rednafi/q/releases/download/v0.2/q_0.2_Darwin_x86_64.tar.gz"
-      sha256 "f2f4a4587452dd3625155c361963d0936ec1e283f5e295edea4a46e0e57493b4"
+      url "https://github.com/rednafi/q/releases/download/v0.3/q_0.3_Darwin_x86_64.tar.gz"
+      sha256 "d1be31f88d718f447bd7d3bec03d161ddd5d8179317fad0eb7c2e84d064402d7"
 
       def install
         bin.install "q"
       end
     end
     on_arm do
-      url "https://github.com/rednafi/q/releases/download/v0.2/q_0.2_Darwin_arm64.tar.gz"
-      sha256 "135701ac0757b78753bd8b328e2164ccf9d08f6b1b441e970145b2b0f0dec491"
+      url "https://github.com/rednafi/q/releases/download/v0.3/q_0.3_Darwin_arm64.tar.gz"
+      sha256 "bf626c2dfeb7c279253e1601c2713a51d84bca656e811586b5b82f3173b7a8a2"
 
       def install
         bin.install "q"
@@ -31,8 +31,8 @@ class Q < Formula
   on_linux do
     on_intel do
       if Hardware::CPU.is_64_bit?
-        url "https://github.com/rednafi/q/releases/download/v0.2/q_0.2_Linux_x86_64.tar.gz"
-        sha256 "aae3b0eee9d2840e03e871702412f7a304f21e334d8e3a85a08836a74cfe14ef"
+        url "https://github.com/rednafi/q/releases/download/v0.3/q_0.3_Linux_x86_64.tar.gz"
+        sha256 "0f4d096df87b1244fb951c1115c760322d973360fb9d4047904429d118efdc7e"
 
         def install
           bin.install "q"
@@ -41,8 +41,8 @@ class Q < Formula
     end
     on_arm do
       if Hardware::CPU.is_64_bit?
-        url "https://github.com/rednafi/q/releases/download/v0.2/q_0.2_Linux_arm64.tar.gz"
-        sha256 "01da7156007729d56ff9300f5914074803a761959632ee6ea2267be77d80530d"
+        url "https://github.com/rednafi/q/releases/download/v0.3/q_0.3_Linux_arm64.tar.gz"
+        sha256 "d284ba9f7b9f218376576f198bc5e97b0bfd235921ced8b24024fe032093fdf3"
 
         def install
           bin.install "q"
