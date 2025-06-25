@@ -151,6 +151,7 @@ func readPromptFromStdin() (string, error) {
 func (cli *CLI) handleStreamingResponse(ctx context.Context, provider, model string, prompt string, raw bool, p providers.Provider) error {
 	if !raw {
 		fmt.Printf("model (%s/%s): ", provider, model)
+		os.Stdout.Sync() // Ensure the prompt is fully written before streaming starts
 	}
 	_, err := p.Stream(ctx, model, prompt)
 	if err != nil {
@@ -268,6 +269,7 @@ func (cli *CLI) createChatCmd() *cobra.Command {
 					}
 					if !flags.Raw {
 						fmt.Printf("model (%s/%s): ", provider, model)
+						os.Stdout.Sync() // Ensure the prompt is fully written before streaming starts
 					}
 					_, err = p.ChatStream(ctx, model, text)
 					if err != nil {
