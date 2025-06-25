@@ -51,6 +51,11 @@ func NewCLI() *CLI {
 
 // createCancellableContext creates a context that gets cancelled on Ctrl+C
 func createCancellableContext() context.Context {
+	return createCancellableContextWithExitFunc(os.Exit)
+}
+
+// createCancellableContextWithExitFunc creates a context with configurable exit behavior for testing
+func createCancellableContextWithExitFunc(exitFunc func(int)) context.Context {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Set up signal handling for Ctrl+C
@@ -61,7 +66,7 @@ func createCancellableContext() context.Context {
 		<-sigChan
 		fmt.Println("\nReceived Ctrl + C, quitting...")
 		cancel()
-		os.Exit(0)
+		exitFunc(0)
 	}()
 
 	return ctx
@@ -275,9 +280,8 @@ func (cli *CLI) createChatCmd() *cobra.Command {
 					if err != nil {
 						return err
 					}
-					if !flags.Raw {
-						fmt.Println()
-					}
+					// Always add a newline after response to separate conversation turns
+					fmt.Println()
 				}
 			} else {
 				// Non-streaming chat mode
@@ -314,7 +318,7 @@ func (cli *CLI) createChatCmd() *cobra.Command {
 						return err
 					}
 					if flags.Raw {
-						fmt.Print(resp)
+						fmt.Println(resp)
 					} else {
 						fmt.Printf("model (%s/%s): %s\n", provider, model, resp)
 					}
