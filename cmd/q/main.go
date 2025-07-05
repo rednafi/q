@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -12,6 +11,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/chzyer/readline"
 	"github.com/spf13/cobra"
 
 	"q/internal/config"
@@ -160,7 +160,30 @@ func executePrompt(ctx context.Context, p providers.Provider, provider, model, p
 }
 
 func chatLoop(ctx context.Context, p providers.Provider, provider, model string, raw, stream bool) error {
-	reader := bufio.NewReader(os.Stdin)
+	// Configure readline
+	prompt := "you: "
+	if raw {
+		prompt = ""
+	}
+
+	// Get history file path in config directory
+	historyFile := ""
+	if configDir, err := config.ConfigPath(); err == nil {
+		historyFile = strings.Replace(configDir, "config.json", "history", 1)
+	}
+
+	rl, err := readline.NewEx(&readline.Config{
+		Prompt:          prompt,
+		HistoryFile:     historyFile,
+		AutoComplete:    nil,
+		InterruptPrompt: "^C",
+		EOFPrompt:       "exit",
+	})
+	if err != nil {
+		return err
+	}
+	defer rl.Close()
+
 	first := true
 
 	for {
@@ -175,15 +198,11 @@ func chatLoop(ctx context.Context, p providers.Provider, provider, model string,
 		}
 		first = false
 
-		if !raw {
-			fmt.Print("you: ")
-		}
-
-		// Read input with context cancellation support
-		text, err := readLineWithContext(ctx, reader)
+		// Read input with readline
+		text, err := rl.Readline()
 		switch {
-		case err == context.Canceled || err == context.DeadlineExceeded:
-			return err
+		case err == readline.ErrInterrupt:
+			return context.Canceled
 		case err == io.EOF:
 			return nil
 		case err != nil:
@@ -208,34 +227,9 @@ func chatLoop(ctx context.Context, p providers.Provider, provider, model string,
 			if err != nil {
 				return err
 			}
-			if raw {
-				fmt.Print(resp)
-			} else {
-				fmt.Print(resp)
-			}
+			fmt.Print(resp)
 		}
 		fmt.Println()
-	}
-}
-
-// readLineWithContext reads a line from the reader with context cancellation support
-func readLineWithContext(ctx context.Context, reader *bufio.Reader) (string, error) {
-	type result struct {
-		line string
-		err  error
-	}
-
-	ch := make(chan result, 1)
-	go func() {
-		line, err := reader.ReadString('\n')
-		ch <- result{line, err}
-	}()
-
-	select {
-	case <-ctx.Done():
-		return "", ctx.Err()
-	case res := <-ch:
-		return res.line, res.err
 	}
 }
 
