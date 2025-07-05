@@ -178,13 +178,18 @@ func chatLoop(ctx context.Context, p providers.Provider, provider, model string,
 		if !raw {
 			fmt.Print("you: ")
 		}
-		text, err := reader.ReadString('\n')
+
+		// Read input with context cancellation support
+		text, err := readLineWithContext(ctx, reader)
 		switch {
+		case err == context.Canceled || err == context.DeadlineExceeded:
+			return err
 		case err == io.EOF:
 			return nil
 		case err != nil:
 			return err
 		}
+
 		text = strings.TrimSpace(text)
 		if text == "" {
 			continue
@@ -210,6 +215,27 @@ func chatLoop(ctx context.Context, p providers.Provider, provider, model string,
 			}
 		}
 		fmt.Println()
+	}
+}
+
+// readLineWithContext reads a line from the reader with context cancellation support
+func readLineWithContext(ctx context.Context, reader *bufio.Reader) (string, error) {
+	type result struct {
+		line string
+		err  error
+	}
+
+	ch := make(chan result, 1)
+	go func() {
+		line, err := reader.ReadString('\n')
+		ch <- result{line, err}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	case res := <-ch:
+		return res.line, res.err
 	}
 }
 
