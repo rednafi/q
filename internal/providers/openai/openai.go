@@ -53,14 +53,14 @@ func handleAPIError(provider string, statusCode int, responseBody []byte) error 
 	return fmt.Errorf("API request failed with status %d: %s", statusCode, string(responseBody))
 }
 
-type Message struct {
+type message struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
 type chatReq struct {
 	Model    string    `json:"model"`
-	Messages []Message `json:"messages"`
+	Messages []message `json:"messages"`
 	Stream   bool      `json:"stream,omitempty"`
 }
 
@@ -71,39 +71,39 @@ type chatResp struct {
 	} `json:"choices"`
 }
 
-type Provider struct {
+type provider struct {
 	client httpclient.HTTPClient
 	apiURL string
 
 	mu      sync.Mutex
-	history []Message
+	history []message
 }
 
-func NewProvider(opts ...func(*Provider)) *Provider {
-	p := &Provider{client: http.DefaultClient, apiURL: defaultAPIURL}
+func NewProvider(opts ...func(*provider)) *provider {
+	p := &provider{client: http.DefaultClient, apiURL: defaultAPIURL}
 	for _, o := range opts {
 		o(p)
 	}
 	return p
 }
 
-func (p *Provider) Name() string              { return "openai" }
-func (p *Provider) SupportedModels() []string { return supportedModels }
+func (p *provider) Name() string              { return "openai" }
+func (p *provider) SupportedModels() []string { return supportedModels }
 
-func (p *Provider) Prompt(ctx context.Context, model, prompt string) (string, error) {
-	return p.send(ctx, model, []Message{{Role: "user", Content: prompt}}, false, nil)
+func (p *provider) Prompt(ctx context.Context, model, prompt string) (string, error) {
+	return p.send(ctx, model, []message{{Role: "user", Content: prompt}}, false, nil)
 }
 
-func (p *Provider) Stream(ctx context.Context, model, prompt string) (string, error) {
+func (p *provider) Stream(ctx context.Context, model, prompt string) (string, error) {
 	var out strings.Builder
-	_, err := p.send(ctx, model, []Message{{Role: "user", Content: prompt}}, true, func(s string) {
+	_, err := p.send(ctx, model, []message{{Role: "user", Content: prompt}}, true, func(s string) {
 		fmt.Print(s)
 		out.WriteString(s)
 	})
 	return out.String(), err
 }
 
-func (p *Provider) ChatPrompt(ctx context.Context, model, msg string) (string, error) {
+func (p *provider) ChatPrompt(ctx context.Context, model, msg string) (string, error) {
 	p.push("user", msg)
 	resp, err := p.send(ctx, model, p.copyHistory(), false, nil)
 	if err == nil {
@@ -112,7 +112,7 @@ func (p *Provider) ChatPrompt(ctx context.Context, model, msg string) (string, e
 	return resp, err
 }
 
-func (p *Provider) ChatStream(ctx context.Context, model, msg string) (string, error) {
+func (p *provider) ChatStream(ctx context.Context, model, msg string) (string, error) {
 	p.push("user", msg)
 
 	var out strings.Builder
@@ -126,12 +126,12 @@ func (p *Provider) ChatStream(ctx context.Context, model, msg string) (string, e
 	return out.String(), err
 }
 
-func (p *Provider) ResetChat() { p.mu.Lock(); p.history = nil; p.mu.Unlock() }
+func (p *provider) ResetChat() { p.mu.Lock(); p.history = nil; p.mu.Unlock() }
 
-func (p *Provider) send(
+func (p *provider) send(
 	ctx context.Context,
 	model string,
-	msgs []Message,
+	msgs []message,
 	stream bool,
 	onDelta func(string),
 ) (string, error) {
@@ -206,14 +206,14 @@ func (p *Provider) send(
 	return fullResponse.String(), scanner.Err()
 }
 
-func (p *Provider) push(role, content string) {
+func (p *provider) push(role, content string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.history = append(p.history, Message{Role: role, Content: content})
+	p.history = append(p.history, message{Role: role, Content: content})
 }
 
-func (p *Provider) copyHistory() []Message {
+func (p *provider) copyHistory() []message {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return append([]Message(nil), p.history...) // defensive copy
+	return append([]message(nil), p.history...) // defensive copy
 }

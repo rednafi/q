@@ -39,7 +39,7 @@ func TestPrompt_Success(t *testing.T) {
 		t.Fatalf("SetAPIKey: %v", err)
 	}
 	data := `{"choices":[{"message":{"content":"world"}}]}`
-	p := NewProvider(func(p *Provider) {
+	p := NewProvider(func(p *provider) {
 		p.client = &fakeClient{resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Body:       io.NopCloser(bytes.NewBufferString(data)),
@@ -73,7 +73,7 @@ func TestStream_Success(t *testing.T) {
 	s := "data: {\"choices\":[{\"delta\":{\"content\":\"h\"}}]}\n" +
 		"data: {\"choices\":[{\"delta\":{\"content\":\"i\"}}]}\n" +
 		"data: [DONE]\n"
-	p := NewProvider(func(p *Provider) {
+	p := NewProvider(func(p *provider) {
 		p.client = &fakeClient{resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Body:       io.NopCloser(strings.NewReader(s)),
@@ -130,7 +130,7 @@ func TestPrompt_HTTPError(t *testing.T) {
 	if err := config.SetAPIKey("openai", "key"); err != nil {
 		t.Fatalf("SetAPIKey: %v", err)
 	}
-	p := NewProvider(func(p *Provider) {
+	p := NewProvider(func(p *provider) {
 		p.client = &fakeClientErr{}
 	})
 	_, err := p.Prompt(context.Background(), "gpt-4", "prompt")
@@ -147,7 +147,7 @@ func TestPrompt_NoResponse(t *testing.T) {
 	}
 	// Stub HTTP client to return empty choices
 	data := `{"choices":[]}`
-	p := NewProvider(func(p *Provider) {
+	p := NewProvider(func(p *provider) {
 		p.client = &fakeClient{resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Body:       io.NopCloser(bytes.NewBufferString(data)),
@@ -166,7 +166,7 @@ func TestPrompt_InvalidJSON(t *testing.T) {
 		t.Fatalf("SetAPIKey: %v", err)
 	}
 	// Stub HTTP client to return invalid JSON
-	p := NewProvider(func(p *Provider) {
+	p := NewProvider(func(p *provider) {
 		p.client = &fakeClient{resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Body:       io.NopCloser(bytes.NewBufferString("invalid")),
@@ -186,7 +186,7 @@ func TestPrompt_EmptyContent(t *testing.T) {
 	}
 	// Stub HTTP client to return choice with empty content
 	data := `{"choices":[{"message":{"content":""}}]}`
-	p := NewProvider(func(p *Provider) {
+	p := NewProvider(func(p *provider) {
 		p.client = &fakeClient{resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Body:       io.NopCloser(bytes.NewBufferString(data)),
@@ -206,7 +206,7 @@ func TestPrompt_HTTPStatusError(t *testing.T) {
 	}
 	// Stub HTTP client to return error status
 	body := `{"error":{"message":"API key invalid"}}`
-	p := NewProvider(func(p *Provider) {
+	p := NewProvider(func(p *provider) {
 		p.client = &fakeClient{
 			resp: &http.Response{
 				StatusCode: http.StatusUnauthorized,
@@ -228,7 +228,7 @@ func TestPrompt_GenericHTTPStatusError(t *testing.T) {
 	}
 	// Stub HTTP client to return error status with non-API key related error
 	body := `{"error":{"message":"Rate limit exceeded"}}`
-	p := NewProvider(func(p *Provider) {
+	p := NewProvider(func(p *provider) {
 		p.client = &fakeClient{
 			resp: &http.Response{
 				StatusCode: http.StatusTooManyRequests,
@@ -250,7 +250,7 @@ func TestPrompt_HTTPStatusErrorInvalidJSON(t *testing.T) {
 	}
 	// Stub HTTP client to return error status with invalid JSON body
 	body := `invalid json response`
-	p := NewProvider(func(p *Provider) {
+	p := NewProvider(func(p *provider) {
 		p.client = &fakeClient{
 			resp: &http.Response{
 				StatusCode: http.StatusInternalServerError,
@@ -276,7 +276,7 @@ func TestChatPrompt_ConversationHistory(t *testing.T) {
 	// Second response that should reference the conversation
 	data2 := `{"choices":[{"message":{"content":"Yes, I remember you asked about the weather. It's sunny today!"}}]}`
 
-	p := NewProvider(func(p *Provider) {
+	p := NewProvider(func(p *provider) {
 		p.client = &fakeClient{resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Body:       io.NopCloser(bytes.NewBufferString(data1)),
@@ -319,7 +319,7 @@ func TestChatStream_ConversationHistory(t *testing.T) {
 		"data: {\"choices\":[{\"delta\":{\"content\":\"i\"}}]}\n" +
 		"data: [DONE]\n"
 
-	p := NewProvider(func(p *Provider) {
+	p := NewProvider(func(p *provider) {
 		p.client = &fakeClient{resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Body:       io.NopCloser(strings.NewReader(s)),
