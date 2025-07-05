@@ -135,7 +135,6 @@ func (p *provider) send(
 	stream bool,
 	onDelta func(string),
 ) (string, error) {
-
 	key, err := config.GetAPIKey(p.Name())
 	switch {
 	case err != nil:
