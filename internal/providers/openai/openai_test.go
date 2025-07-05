@@ -359,16 +359,16 @@ func TestResetChat(t *testing.T) {
 	p := NewProvider()
 
 	// Add some conversation history
-	p.appendHistory("user", "Hello")
-	p.appendHistory("assistant", "Hi there!")
+	p.push("user", "Hello")
+	p.push("assistant", "Hi there!")
 
-	if len(p.hist) != 2 {
-		t.Errorf("Expected 2 messages in history, got %d", len(p.hist))
+	if len(p.history) != 2 {
+		t.Errorf("Expected 2 messages in history, got %d", len(p.history))
 	}
 
 	p.ResetChat()
 
-	if len(p.hist) != 0 {
-		t.Errorf("Expected 0 messages in history after reset, got %d", len(p.hist))
+	if len(p.history) != 0 {
+		t.Errorf("Expected 0 messages in history after reset, got %d", len(p.history))
 	}
 }
